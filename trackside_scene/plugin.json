@@ -1,7 +1,7 @@
 {
   "tesserae_compat": "1.x",
   "name": "Trackside: Scene",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "kind": "widget",
   "tesserae_min": "0.463.0",
   "description": "The nearest train or tram as one whole painting across the page: the vehicle from her photograph in a painted street, at the platform, over a bridge, through the country, at night or in the rain, with her particulars set over it.",
@@ -38,7 +38,7 @@
         },
         {
           "value": "melbourne",
-          "label": "Melbourne: Metro Trains, Yarra Trams, V/Line (Transport Victoria, free key)"
+          "label": "Melbourne: whichever key is in the settings (Transport Victoria open data, else the PTV Timetable API)"
         },
         {
           "value": "boston",

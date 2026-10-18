@@ -61,7 +61,7 @@ def user_agent(contact: str) -> str:
 # id -> label, [(feed url, mode)], key header, operator words for Commons, needs a key
 PRESETS: dict[str, dict[str, Any]] = {
     "melbourne": {
-        "label": "Melbourne: Metro Trains, Yarra Trams, V/Line (Transport Victoria, free key)",
+        "label": "Melbourne: whichever key is in the settings (Transport Victoria open data, else the PTV Timetable API)",
         "feeds": [
             (VIC.format(feed="metro"), "train"),
             (VIC.format(feed="tram"), "tram"),
@@ -398,6 +398,24 @@ TRAMS: list[tuple[int, int, str, str, float, str, str]] = [
 # motor and trailer cars: (first, last, suffix, class, name, Commons category, about)
 TRAINS: list[tuple[int, int, str, str, str, str, str]] = [
     (
+        8000,
+        8999,
+        "M",
+        "xtrap2",
+        "X'Trapolis 2.0",
+        "X'Trapolis 2.0",
+        "an Alstom X'Trapolis 2.0 six-car electric suburban train, Melbourne's newest",
+    ),
+    (
+        8000,
+        8999,
+        "T",
+        "xtrap2",
+        "X'Trapolis 2.0",
+        "X'Trapolis 2.0",
+        "an Alstom X'Trapolis 2.0 six-car electric suburban train, Melbourne's newest",
+    ),
+    (
         1,
         288,
         "M",
@@ -472,6 +490,7 @@ TRAINS: list[tuple[int, int, str, str, str, str, str]] = [
 ]
 TRAIN_LEN = {
     "xtrap": 70.0,
+    "xtrap2": 140.0,
     "comeng": 71.0,
     "nexas": 72.0,
     "hcmt": 160.0,
@@ -502,6 +521,7 @@ METRO_LINES = {
     "LIL": "Lilydale",
     "MDD": "Mernda",
     "PKM": "Pakenham",
+    "SHM": "Sandringham",
     "SDM": "Sandringham",
     "STY": "Stony Point",
     "SUY": "Sunbury",
@@ -720,6 +740,7 @@ def _feed(
 TRAIN_WORDS = (
     ("siemens", "nexas"),
     ("comeng", "comeng"),
+    ("trapolis 2", "xtrap2"),
     ("trapolis", "xtrap"),
     ("hcmt", "hcmt"),
     ("high capacity", "hcmt"),
@@ -976,7 +997,7 @@ def nearby(
     if PRESETS.get(source, {}).get("key") and not key:
         return (
             [],
-            "Give a Transport Victoria open data key in the Trackside Core settings (free at opendata.transport.vic.gov.au).",
+            "Give a Transport Victoria open data key in the Trackside Core settings (free at opendata.transport.vic.gov.au), or a PTV Timetable API developer id and key, which Melbourne then uses instead.",
             "",
         )
     if source == "custom" and header and not key:

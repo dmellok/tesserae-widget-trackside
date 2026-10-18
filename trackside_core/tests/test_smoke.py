@@ -419,7 +419,7 @@ def test_manifests_and_client_files():
     ):
         m = json.loads((ROOT / wid / "plugin.json").read_text(encoding="utf-8"))
         assert (
-            m["version"] == "0.2.0"
+            m["version"] == "0.2.1"
             and m["tesserae_compat"] == "1.x"
             and m["tesserae_min"] == "0.463.0"
         )
@@ -923,3 +923,25 @@ def test_melbourne_through_the_ptv_timetable_api(tmp_path, offline):
         )["typ"]
         == "Comeng train, 6 cars"
     )
+
+
+def test_melbourne_uses_the_ptv_key_when_that_is_the_one_given(tmp_path, offline):
+    st = {**SETTINGS, "vic_key": "", "ptv_devid": PTV_ID, "ptv_key": PTV_KEY}
+    r = lineup.fetch({**FLINDERS, "pictures": "photos"}, st, ctx=_ctx(tmp_path))
+    assert r["state"] == "ok" and r["attribution"] == "positions from PTV", (
+        "the default Melbourne source falls to the key there is"
+    )
+    r = lineup.fetch(
+        {**FLINDERS, "pictures": "photos"},
+        {**SETTINGS, "vic_key": ""},
+        ctx=_ctx(tmp_path / "none"),
+    )
+    assert (
+        r["state"] == "error" and "PTV Timetable API developer id and key" in r["error"]
+    ), "with neither, the message names both"
+    assert R.melbourne_route("train", "2-SHM") == "Sandringham line"
+    x2 = R.melbourne_vehicle("train", "8107M-8207T-8307M-8407M-8507T-8607M", "")
+    assert x2["typ"] == "X'Trapolis 2.0" and x2["cat"] == "X'Trapolis 2.0"
+    assert R.ptv_train(
+        {"id": "8107M-8207T-8307M", "description": "6 Car Xtrapolis 2.0"}
+    )["typ"].startswith("X'Trapolis 2.0")

@@ -349,6 +349,14 @@ def fetch(
     fal_key = art.key
 
     source = _choice(options.get("source"), R.SOURCES, "melbourne")
+    # Melbourne takes whichever key there is: the PTV Timetable API's when only that one is given
+    if (
+        source == "melbourne"
+        and not str(settings.get("vic_key") or "").strip()
+        and str(settings.get("ptv_devid") or "").strip()
+        and str(settings.get("ptv_key") or "").strip()
+    ):
+        source = "ptv"
     key = (
         f"{str(settings.get('ptv_devid') or '').strip()}:{str(settings.get('ptv_key') or '').strip()}"
         if source == "ptv"
