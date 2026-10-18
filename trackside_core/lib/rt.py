@@ -1080,6 +1080,78 @@ def photo_of(r: dict[str, Any], data_dir: Path, ua: str) -> dict[str, str]:
     return {**photo, "exact": "1" if exact else ""} if photo.get("src") else {}
 
 
+# ----------------------------------------------------------------------
+# Side views: one picture of each class seen from the side, chosen by hand
+# from Wikimedia Commons (most photographs of a tram or a train are taken
+# from the front three-quarter), for the painter to take her length, her
+# sections and the spacing of her doors from.
+# ----------------------------------------------------------------------
+SIDE_VIEWS: dict[str, str] = {
+    "Z": "160 at Cotham Rd, Burke Rd.jpg",
+    "A": "A1 237 (Melbourne tram) in Bourke St, December 2013.JPG",
+    "B2": "2038 at Federation Square, Swanston St.jpg",
+    "C": "C-class tram -3009 operating Route 48 to Victoria Harbour Docklands on Collins Street crossing Swanston Street, Melbourne.jpg",
+    "C2": "C2.5123 bourke, 2014.jpg",
+    "D1": "D-class Melbourne tram. (21123049648).jpg",
+    "D2": "D Class tram on Sydney Road.jpg",
+    "E": "Bombarider Flexity Swift E1 Class Tram No.6033 (55396907756).jpg",
+    "G": "Side view of G class tram number 7006 in PTV livery operating a route 59 service to Flinders Street Station at Flinders Street Station terminus on the day of the first run of the G class tram in revenue service, Melbourne.jpg",
+    "W": "Melbourne tram at Muni Heritage Weekend line scan dllu.jpg",
+    "comeng": "630 at Flinders Street.jpg",
+    "nexas": "731 at South Yarra.jpg",
+    "xtrap": "210M(Cropped).jpg",
+    "hcmt": "904 at Malvern.jpg",
+    "vlocity": "Melton VLine Train October 2018.JPG",
+}
+
+
+def side_key(r: dict[str, Any]) -> str:
+    """The side-view table's key for a vehicle: Z1, Z2 and Z3 share the Z's, E2 the E's."""
+    k = str(r.get("klass") or "")
+    return {
+        "Z1": "Z",
+        "Z2": "Z",
+        "Z3": "Z",
+        "A1": "A",
+        "A2": "A",
+        "E2": "E",
+        "W7": "W",
+        "W8": "W",
+    }.get(k, k)
+
+
+def own_side_views(text: Any) -> dict[str, str]:
+    """The owner's own side views, one a line: ``class = URL``. The class is
+    the widget's (E, C2, comeng, xtrap...) or the class name the page shows."""
+    out: dict[str, str] = {}
+    for line in str(text or "").splitlines():
+        if "=" in line:
+            k, _, src = line.partition("=")
+            if k.strip() and src.strip().startswith(("http://", "https://")):
+                out[k.strip().lower()] = src.strip()
+    return out
+
+
+def side_of(
+    r: dict[str, Any], data_dir: Path, ua: str, own: dict[str, str] | None = None
+) -> dict[str, str]:
+    """{src, by, lic, link} for a side view of the vehicle's class: the
+    owner's own first, then the table's; {} when there is none."""
+    own = own or {}
+    for k in (
+        side_key(r).lower(),
+        str(r.get("klass") or "").lower(),
+        str(r.get("typ") or "").lower(),
+    ):
+        if k and k in own:
+            return {"src": own[k], "by": "your own picture", "lic": "", "link": own[k]}
+    title = SIDE_VIEWS.get(side_key(r))
+    if not title:
+        return {}
+    got = file_info(f"File:{title}", data_dir, ua)
+    return got if got.get("src") else {}
+
+
 def photo_src(
     photo: dict[str, str], data_dir: Path, ua: str, px: int, levels: str
 ) -> str:

@@ -397,7 +397,10 @@ def fetch(
     if widget == "scene" and backdrop == "none":
         backdrop = "street"
     view = _choice(options.get("view"), tuple(P.VIEWS))
-    fidelity = _choice(options.get("fidelity"), P.FIDELITIES)
+    fidelity = _choice(
+        options.get("fidelity"), P.FIDELITIES, "side" if widget == "lineup" else "photo"
+    )
+    own_sides = R.own_side_views(settings.get("side_views"))
     paint = _choice(options.get("paint"), PAINTS, "all")
     weather = weather_text = ""
 
@@ -509,7 +512,9 @@ def fetch(
         photo = R.photo_of(r, data_dir, ua)
         if photo.get("src"):
             N.cached_get(data_dir, photo["src"], ua=ua)
-        return {"photo": photo}
+        # a side view of her class, for the painter: only when paintings are asked for
+        side = R.side_of(r, data_dir, ua, own_sides) if pictures == "paintings" else {}
+        return {"photo": photo, "side": side}
 
     deferred = 0
     tpool = ThreadPoolExecutor(max_workers=6, thread_name_prefix="trackside-lookup")
@@ -581,6 +586,7 @@ def fetch(
                     weather,
                     fidelity,
                     photo="" if exact else photo["src"],
+                    side=(r.get("side") or {}).get("src") or "",
                 )
                 payload = {
                     "num": r["num"],
@@ -601,6 +607,9 @@ def fetch(
                     "link": photo.get("link") or "",
                     "ua": ua,
                     "aspect": "4:3",
+                    "side": (r.get("side") or {}).get("src") or "",
+                    "side_by": (r.get("side") or {}).get("by") or "",
+                    "side_lic": (r.get("side") or {}).get("lic") or "",
                 }
                 got = art.request(
                     pkey,
@@ -648,7 +657,7 @@ def fetch(
                 }
                 credits.append(pic["credit"])
         r["pic"] = pic
-        for k in ("lat", "lon", "photo", "cat"):
+        for k in ("lat", "lon", "photo", "cat", "side"):
             r.pop(k, None)
     if only_painted:
         shown = [

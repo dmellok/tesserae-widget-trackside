@@ -723,13 +723,18 @@
           "label": "As photographed: the same angle, every mark of the livery"
         },
         {
+          "value": "side",
+          "label": "Side-on, from both pictures: her livery from her photograph, her length and doors from her class's side view"
+        },
+        {
           "value": "free",
           "label": "Drawn afresh: the model's own composition, the view below"
         }
       ],
       "show_if": {
         "pictures": "paintings"
-      }
+      },
+      "help": "Most photographs of a tram or a train are taken from the front three-quarter. Side-on hands the painter a second picture of her class seen from the side (chosen by hand for each Melbourne class, or your own under the Trackside Core settings) and paints a pure side elevation, the way a fleet line-up reads; a class without a side view is painted side-on from her photograph alone. The other two use the side view too, where there is one, for her length and the spacing of her doors."
     },
     {
       "name": "view",

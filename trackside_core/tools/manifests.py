@@ -227,12 +227,17 @@ def picture_options(with_backdrop, many, scene=False):
         sel(
             "fidelity",
             "Faithfulness",
-            "photo",
+            "side" if many else "photo",
             [
                 ("photo", "As photographed: the same angle, every mark of the livery"),
+                (
+                    "side",
+                    "Side-on, from both pictures: her livery from her photograph, her length and doors from her class's side view",
+                ),
                 ("free", "Drawn afresh: the model's own composition, the view below"),
             ],
             show_if=show,
+            help="Most photographs of a tram or a train are taken from the front three-quarter. Side-on hands the painter a second picture of her class seen from the side (chosen by hand for each Melbourne class, or your own under the Trackside Core settings) and paints a pure side elevation, the way a fleet line-up reads; a class without a side view is painted side-on from her photograph alone. The other two use the side view too, where there is one, for her length and the spacing of her doors.",
         )
     )
     out.append(
@@ -527,6 +532,13 @@ CORE = {
             "secret": True,
             "default": "",
             "help": "With a key the widgets can paint each vehicle from her photograph, at about US$0.04 a painting, once per vehicle and style. Leave it blank to use the key under Settings › Generative AI. Without either the widgets show photographs.",
+        },
+        {
+            "name": "side_views",
+            "type": "textarea",
+            "label": "Side views of your own",
+            "default": "",
+            "help": "Pictures of a class seen from the side, for the painter, one a line: class = link. The class as the page names it (E-class tram) or the widget's short name (E, C2, D1, comeng, nexas, xtrap, hcmt, vlocity), or another agency's class as its page shows it. Yours come before the ones the widget carries for Melbourne.",
         },
         {
             "name": "contact",

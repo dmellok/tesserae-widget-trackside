@@ -247,7 +247,7 @@ def offline(monkeypatch):
                     }
                 }
             ).encode(), None
-        if "upload.wikimedia.org" in url:
+        if "upload.wikimedia.org" in url or "example.org" in url:
             return _jpeg(), None
         if "open-meteo" in url:
             return json.dumps(
@@ -571,7 +571,7 @@ def test_only_vehicles_with_their_own_photograph_are_painted(tmp_path, offline):
     )
     _settle()
     assert len(prompts) == 3 and not any(
-        "same class" in p["prompt"] for p in prompts
+        "The photograph is of another" in p["prompt"] for p in prompts
     ), "6036, 3020 and 102M"
     assert any("left unpainted" in s for s in r["status"])
 
@@ -642,3 +642,100 @@ def test_another_agencys_feed(tmp_path, offline):
     assert [a["headers"] for a in asked if "translink" in a["url"]] == [
         {"x-api-key": "abc"}
     ]
+
+
+def test_side_views_for_the_painter(tmp_path, offline):
+    prompts, _asked = offline
+    assert (
+        R.side_key({"klass": "Z3"}) == "Z"
+        and R.side_key({"klass": "E2"}) == "E"
+        and R.side_key({"klass": "comeng"}) == "comeng"
+    )
+    # the line-up paints side-on from both pictures by default
+    r = lineup.fetch(
+        {
+            **FLINDERS,
+            "pictures": "paintings",
+            "style": "linocut",
+            "modes": ["tram"],
+            "count": "2",
+        },
+        SETTINGS,
+        ctx=_ctx(tmp_path),
+    )
+    _settle()
+    assert len(prompts) == 2 and all(len(p["image_urls"]) == 2 for p in prompts), (
+        "her photograph and her class's side view"
+    )
+    assert all(
+        "pure side elevation" in p["prompt"]
+        and "second picture shows a tram of the same class from the side" in p["prompt"]
+        for p in prompts
+    )
+    r = lineup.fetch(
+        {
+            **FLINDERS,
+            "pictures": "paintings",
+            "style": "linocut",
+            "modes": ["tram"],
+            "count": "2",
+        },
+        SETTINGS,
+        ctx=_ctx(tmp_path),
+    )
+    pic = r["vehicles"][0]["pic"]
+    assert (
+        pic["kind"] == "painting"
+        and "and a side view by A. Spotter (CC BY-SA 4.0)" in pic["credit"]
+    )
+    # the plate keeps the photograph's angle and takes the side view for her length
+    prompts.clear()
+    plate.fetch(
+        {**FLINDERS, "pictures": "paintings", "style": "linocut", "modes": ["tram"]},
+        SETTINGS,
+        ctx=_ctx(tmp_path),
+    )
+    _settle()
+    assert (
+        len(prompts) == 1
+        and "faithful translation" in prompts[0]["prompt"]
+        and "take her length, her sections" in prompts[0]["prompt"]
+    )
+    # a side view of your own comes first; FLUX Kontext takes one picture only
+    prompts.clear()
+    own = {**SETTINGS, "side_views": "E = https://example.org/e-side.jpg\nnot a line"}
+    lineup.fetch(
+        {
+            **FLINDERS,
+            "pictures": "paintings",
+            "style": "riso",
+            "modes": ["tram"],
+            "count": "1",
+        },
+        own,
+        ctx=_ctx(tmp_path),
+    )
+    _settle()
+    assert len(prompts) == 1 and len(prompts[0]["image_urls"]) == 2
+    assert R.own_side_views("E = https://example.org/e-side.jpg\nnot a line") == {
+        "e": "https://example.org/e-side.jpg"
+    }
+    prompts.clear()
+    lineup.fetch(
+        {
+            **FLINDERS,
+            "pictures": "paintings",
+            "style": "pixel",
+            "model": "flux_kontext",
+            "modes": ["tram"],
+            "count": "1",
+        },
+        SETTINGS,
+        ctx=_ctx(tmp_path),
+    )
+    _settle()
+    assert (
+        len(prompts) == 1
+        and "image_url" in prompts[0]
+        and "image_urls" not in prompts[0]
+    )

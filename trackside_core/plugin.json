@@ -30,6 +30,13 @@
       "help": "With a key the widgets can paint each vehicle from her photograph, at about US$0.04 a painting, once per vehicle and style. Leave it blank to use the key under Settings › Generative AI. Without either the widgets show photographs."
     },
     {
+      "name": "side_views",
+      "type": "textarea",
+      "label": "Side views of your own",
+      "default": "",
+      "help": "Pictures of a class seen from the side, for the painter, one a line: class = link. The class as the page names it (E-class tram) or the widget's short name (E, C2, D1, comeng, nexas, xtrap, hcmt, vlocity), or another agency's class as its page shows it. Yours come before the ones the widget carries for Melbourne."
+    },
+    {
       "name": "contact",
       "type": "string",
       "label": "Contact for Wikimedia Commons",

@@ -514,7 +514,21 @@ GEN_FAITHFUL = (
     "wires, is left out unless the backdrop asks for it. {page} No text or lettering beyond the livery's own, no "
     "border, no signature.{outline}"
 )
-FIDELITIES = ("photo", "free")
+GEN_SIDE = (
+    "Draw the {typ} in the first reference photo{num} in {op} livery, as {style}, seen exactly from the side at "
+    "eye level: a pure side elevation, as in a builder's drawing, the whole {kind} level and centred, every door, "
+    "window and section along her length shown. The first photograph is the authority for her livery, colours, "
+    "markings and the shape of her cab; the second picture shows a {kind} of the same class from the side, and is "
+    "the authority for her length, the number of sections, the number and spacing of the doors and windows, the "
+    "roof equipment and the bogies. Everything else in either picture, the street, the platform, other vehicles, "
+    "people, poles and wires, is left out{scene}. {page} No text or lettering beyond the livery's own, no border, "
+    "no signature.{outline}"
+)
+SIDE_REF = (
+    " The second picture shows a {kind} of the same class from the side: take her length, her sections and the "
+    "spacing of her doors and windows from it, and keep everything else from the first photograph."
+)
+FIDELITIES = ("photo", "free", "side")
 PAGE_ALONE = (
     "The {kind} alone on plain, pure white paper with a clear margin all round and nothing else on the page: "
     "no street, track, platform, wires, poles, ground, shadow or ornament round or behind it beyond a short "
@@ -570,16 +584,19 @@ def key_for(
     weather: str = "",
     fidelity: str = "photo",
     photo: str = "",
+    side: str = "",
 ) -> str:
     """The painting's key: the vehicle (or, painted from a class photograph,
     the class and that photograph), the style and what else shapes it."""
     parts = [N.slug(who), style, f"p{PROMPT_VERSION}"]
     if photo:
         parts.append("ph_" + hashlib.sha1(photo.encode()).hexdigest()[:8])
-    if fidelity == "free":
-        parts.append("free")
-    else:
-        view = "side"  # as photographed: the view is the photograph's
+    if side:
+        parts.append("sd_" + hashlib.sha1(side.encode()).hexdigest()[:8])
+    if fidelity in ("free", "side"):
+        parts.append(fidelity)
+    if fidelity != "free":
+        view = "side"  # as photographed, or side-on: the view is settled
     if backdrop == "live":
         parts.append(f"bd_{N.slug(weather or 'midday_clear')[:24]}")
     elif backdrop != "none":
@@ -623,19 +640,24 @@ def prompt_for(job: dict[str, Any]) -> str:
         "page": (PAGE_ALONE if alone else PAGE_WHOLE).replace("{kind}", kind),
         "outline": OUTLINE.replace("{kind}", kind) if alone else "",
     }
-    if str(job.get("fidelity") or "photo") != "free":
-        text = GEN_FAITHFUL.format(
-            **fill,
-            scene=scene.replace(", across ", ", set across ")
-            if scene and backdrop != "ornate"
-            else scene,
-        )
+    fidelity = str(job.get("fidelity") or "photo")
+    set_scene = (
+        scene.replace(", across ", ", set across ")
+        if scene and backdrop != "ornate"
+        else scene
+    )
+    if fidelity == "side" and job.get("side"):
+        text = GEN_SIDE.format(**fill, scene=set_scene)
+    elif fidelity == "photo":
+        text = GEN_FAITHFUL.format(**fill, scene=set_scene)
+        if job.get("side"):
+            text += SIDE_REF.format(kind=kind)
     else:
-        text = GEN.format(
-            **fill,
-            view=VIEWS.get(str(job.get("view") or "side"), VIEWS["side"]),
-            scene=scene,
-        )
+        # drawn afresh, or side-on without a side view: the photograph alone, in the view asked for
+        view = "profile" if fidelity == "side" else str(job.get("view") or "side")
+        text = GEN.format(**fill, view=VIEWS.get(view, VIEWS["side"]), scene=scene)
+        if job.get("side"):
+            text += SIDE_REF.format(kind=kind)
     if not job.get("exact"):
         text += f" The photograph is of another {kind} of the same class: keep the class's shape and the operator's standard livery, and leave out any advertising wrap or fleet number particular to that one."
     if str(job.get("style") or "") in MONO:
@@ -951,12 +973,23 @@ def make(job: Any) -> tuple[bytes, dict[str, Any]]:
         if not raw_ref:
             raise artwork.ArtworkError("the photograph could not be read")
         photo = _fal.data_uri(raw_ref)
+    refs = [photo]
+    side = str(j.get("side") or "")
+    if side and model != "flux_kontext":  # Kontext takes one picture
+        raw_side = N.cached_get(job.data_dir, side, ua=str(j.get("ua") or ""))
+        if raw_side:
+            refs.append(_fal.data_uri(raw_side))
     raw = job.fal.generate(
-        model, prompt, refs=[photo], aspect=str(j.get("aspect") or "4:3"), retries=1
+        model, prompt, refs=refs, aspect=str(j.get("aspect") or "4:3"), retries=1
     )
     label = MODELS[model]["label"]
     whose = "her own photograph" if j.get("exact") else "a photograph of her class"
     credit = f"painted by {label} from {whose} by {j.get('by') or 'a Commons contributor'} (Wikimedia Commons, {j.get('lic') or 'open licence'})"
+    if len(refs) > 1:
+        credit += (
+            f", and a side view by {j.get('side_by') or 'a Commons contributor'}"
+            + (f" ({j['side_lic']})" if j.get("side_lic") else "")
+        )
     meta = {
         "num": j.get("num"),
         "typ": j.get("typ"),
@@ -971,6 +1004,8 @@ def make(job: Any) -> tuple[bytes, dict[str, Any]]:
         "by": j.get("by") or "",
         "link": j.get("link") or "",
         "exact": bool(j.get("exact")),
+        "side": side if len(refs) > 1 else "",
+        "side_by": j.get("side_by") or "",
         "prompt": prompt,
         "prompt_version": PROMPT_VERSION,
     }
