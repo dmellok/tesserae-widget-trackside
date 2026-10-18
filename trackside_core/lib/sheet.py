@@ -37,6 +37,12 @@ N = _sibling("net")
 R = _sibling("rt")
 P = _sibling("paint")
 W = _sibling("watch")
+SG = _sibling("sightings")
+# the ledger of passes: one id per airframe (vehicle), the same as the first part of its painting's key
+SIGHT_ID = lambda r: f"{r.get('op') or ''} {r.get('num') or ''}".strip()
+SIGHT_NAME = lambda r: " · ".join(
+    x for x in (r.get("typ") or "", r.get("line") or "") if x
+)
 
 WIDGETS = ("photo", "plate", "lineup", "scene")
 RADII = ("1", "2", "3", "5", "10", "15", "25")
@@ -300,6 +306,7 @@ def watched(
         got, _err, _feed = R.nearby(
             source, options, key, lat, lon, radius, data_dir, ua
         )
+        SG.ledger(data_dir).note(got, SIGHT_ID, SIGHT_NAME)
         return got
 
     w = W.watch_for(
@@ -480,6 +487,7 @@ def fetch(
     )
     if err and not rows and not feed:
         return {**base, "state": "error", "error": err}
+    SG.ledger(data_dir).note(rows, SIGHT_ID, SIGHT_NAME)
     if _choice(options.get("period"), PERIODS, "now") == "since":
         rows = watched(
             options,

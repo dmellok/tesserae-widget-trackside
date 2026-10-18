@@ -23,6 +23,8 @@ Four Tesserae widgets for the trains and trams near you right now, installed tog
 
 **Settings** live on Trackside Core: the Transport Victoria key, the fal.ai key (or the one under Settings › Generative AI), a contact for Wikimedia Commons, the daily painting budget, and how many paintings start per preview and run at once. The paintings page is under Plugins › Trackside Core.
 
+**How full the catalogue is**: the widgets count every pass of every train and tram they see, across all your cells (the same one again within half an hour is one pass), in one ledger under the core's data folder. The paintings page shows the chance the next one past is already painted, what share of passes were of a painted one, how many seen are painted, and an estimate of how many pass your places in all (Chao1, from how many were seen once and twice), with the ones seen most.
+
 ## Install
 
 Needs Tesserae 0.463 or later: the paintings are kept, queued, budgeted and listed by the server's own Artwork support (`app.artwork`).

@@ -40,6 +40,7 @@ lineup = _load(ROOT / "trackside_lineup" / "server.py", "trackside_lineup_server
 photo = _load(ROOT / "trackside_photo" / "server.py", "trackside_photo_server")
 plate = _load(ROOT / "trackside_plate" / "server.py", "trackside_plate_server")
 scene = _load(ROOT / "trackside_scene" / "server.py", "trackside_scene_server")
+core = _load(ROOT / "trackside_core" / "server.py", "trackside_core_server")
 S = lineup._lib("sheet")
 R = S.R
 P = S.P
@@ -419,7 +420,7 @@ def test_manifests_and_client_files():
     ):
         m = json.loads((ROOT / wid / "plugin.json").read_text(encoding="utf-8"))
         assert (
-            m["version"] == "0.2.1"
+            m["version"] == "0.3.0"
             and m["tesserae_compat"] == "1.x"
             and m["tesserae_min"] == "0.463.0"
         )
@@ -945,3 +946,43 @@ def test_melbourne_uses_the_ptv_key_when_that_is_the_one_given(tmp_path, offline
     assert R.ptv_train(
         {"id": "8107M-8207T-8307M", "description": "6 Car Xtrapolis 2.0"}
     )["typ"].startswith("X'Trapolis 2.0")
+
+
+def test_the_catalogue_counts_passes(tmp_path, offline):
+    SG = S.SG
+    a, b = (
+        {"op": "Yarra Trams", "num": "6036", "typ": "E-class tram"},
+        {
+            "op": "Metro Trains Melbourne",
+            "num": "301M-1001T-302M",
+            "typ": "Comeng train",
+        },
+    )
+    led = SG.ledger(tmp_path / "unit")
+    led.note([a, b], S.SIGHT_ID, S.SIGHT_NAME, now=1000)
+    led.note([a], S.SIGHT_ID, S.SIGHT_NAME, now=1600)
+    assert led.seen[S.SIGHT_ID(a)]["v"] == 1, (
+        "seen again within half an hour is the same pass"
+    )
+    led.note([a], S.SIGHT_ID, S.SIGHT_NAME, now=4000)
+    st = SG.stats(tmp_path / "unit", lambda rid: rid == S.SIGHT_ID(a), now=4000)
+    assert (st["airframes"], st["passes"], st["once"], st["twice"], st["painted"]) == (
+        2,
+        3,
+        1,
+        1,
+        1,
+    )
+    assert (
+        st["painted_passes_share"] == round(2 / 3, 3)
+        and st["coverage"] == round(1 - 1 / 3, 3)
+        and st["estimate"] == 2
+    )
+    assert st["top"][0]["passes"] == 2 and st["top"][0]["painted"] is True
+    led.save(now=4000)
+    again = SG.Ledger(tmp_path / "unit" / SG.FILE)
+    assert again.seen[S.SIGHT_ID(a)]["v"] == 2, "kept across a restart"
+    # a render counts what it saw, and the paintings page reads it
+    lineup.fetch({**FLINDERS, "pictures": "photos"}, SETTINGS, ctx=_ctx(tmp_path))
+    st = core.sightings_context(tmp_path)["s"]
+    assert st["airframes"] >= 1 and st["passes"] >= 1 and st["painted"] == 0
