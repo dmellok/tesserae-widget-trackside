@@ -1,0 +1,1038 @@
+{
+  "tesserae_compat": "1.x",
+  "name": "Trackside: Scene",
+  "version": "0.1.0",
+  "kind": "widget",
+  "tesserae_min": "0.463.0",
+  "description": "The nearest train or tram as one whole painting across the page: the vehicle from her photograph in a painted street, at the platform, over a bridge, through the country, at night or in the rain, with her particulars set over it.",
+  "icon": "ph-buildings",
+  "supports": {
+    "sizes": [
+      "sm",
+      "md",
+      "lg"
+    ]
+  },
+  "requires": [
+    "network:*",
+    "settings:plugin/trackside_core",
+    "plugin:trackside_core"
+  ],
+  "render": {
+    "needs_network": true,
+    "warm_ahead_s": 150
+  },
+  "design": {
+    "palette": "extended"
+  },
+  "cell_options": [
+    {
+      "name": "source",
+      "type": "select",
+      "label": "Positions from",
+      "default": "melbourne",
+      "choices": [
+        {
+          "value": "melbourne",
+          "label": "Melbourne: Metro Trains, Yarra Trams, V/Line (Transport Victoria, free key)"
+        },
+        {
+          "value": "boston",
+          "label": "Boston: MBTA subway, light rail and commuter rail (no key)"
+        },
+        {
+          "value": "brisbane",
+          "label": "Brisbane: Queensland Rail City network (Translink, no key)"
+        },
+        {
+          "value": "goldcoast",
+          "label": "Gold Coast: G:link light rail (Translink, no key)"
+        },
+        {
+          "value": "custom",
+          "label": "Another agency's GTFS-Realtime feed"
+        }
+      ],
+      "help": "Melbourne reads Transport Victoria's three vehicle-position feeds (Metro Trains, Yarra Trams, V/Line) with the free key in the Trackside Core settings. The others need no key. Another agency: most publish their vehicle positions as GTFS-Realtime; give the feed's link below."
+    },
+    {
+      "name": "feed_urls",
+      "type": "textarea",
+      "label": "Vehicle positions feeds",
+      "default": "",
+      "show_if": {
+        "source": "custom"
+      },
+      "help": "One GTFS-Realtime VehiclePositions link a line, up to four (the agency's open data page names them)."
+    },
+    {
+      "name": "key_header",
+      "type": "string",
+      "label": "Key header",
+      "default": "",
+      "show_if": {
+        "source": "custom"
+      },
+      "help": "The HTTP header the agency wants its key in, for example x-api-key or Authorization. Blank for a feed without a key."
+    },
+    {
+      "name": "feed_key",
+      "type": "string",
+      "label": "Key",
+      "default": "",
+      "secret": true,
+      "show_if": {
+        "source": "custom"
+      }
+    },
+    {
+      "name": "operator",
+      "type": "string",
+      "label": "Operator, for the photographs",
+      "default": "",
+      "show_if": {
+        "source": "custom"
+      },
+      "help": "The name Wikimedia Commons knows the operator by (for example Sydney Trains); the widget looks for a photograph of each vehicle by this and her number."
+    },
+    {
+      "name": "location",
+      "type": "location_search",
+      "label": "Place",
+      "default": "",
+      "help": "The point the distances and bearings are from. Falls back to the app's location."
+    },
+    {
+      "name": "radius_km",
+      "type": "select",
+      "label": "Within",
+      "default": "3",
+      "choices": [
+        {
+          "value": "1",
+          "label": "1 km"
+        },
+        {
+          "value": "2",
+          "label": "2 km"
+        },
+        {
+          "value": "3",
+          "label": "3 km"
+        },
+        {
+          "value": "5",
+          "label": "5 km"
+        },
+        {
+          "value": "10",
+          "label": "10 km"
+        },
+        {
+          "value": "15",
+          "label": "15 km"
+        },
+        {
+          "value": "25",
+          "label": "25 km"
+        }
+      ]
+    },
+    {
+      "name": "modes",
+      "type": "multiselect",
+      "label": "Show",
+      "default": [
+        "tram",
+        "train",
+        "regional",
+        "subway"
+      ],
+      "choices": [
+        {
+          "value": "tram",
+          "label": "Trams and light rail"
+        },
+        {
+          "value": "train",
+          "label": "Suburban trains"
+        },
+        {
+          "value": "regional",
+          "label": "Regional trains"
+        },
+        {
+          "value": "subway",
+          "label": "Subway and metro"
+        }
+      ]
+    },
+    {
+      "name": "order",
+      "type": "select",
+      "label": "Order",
+      "default": "nearest",
+      "choices": [
+        {
+          "value": "nearest",
+          "label": "Nearest first"
+        },
+        {
+          "value": "fastest",
+          "label": "Fastest first"
+        },
+        {
+          "value": "longest",
+          "label": "Longest first"
+        }
+      ]
+    },
+    {
+      "name": "period",
+      "type": "select",
+      "label": "When",
+      "default": "now",
+      "choices": [
+        {
+          "value": "now",
+          "label": "What is within reach now"
+        },
+        {
+          "value": "since",
+          "label": "Everything that passed since the last render"
+        }
+      ],
+      "help": "Since the last render keeps a watch on the place between renders (the feeds asked every minute) and shows every train and tram seen since the page was last drawn for a panel, each at her closest approach with the time. The editor's previews show the same window without moving it on; the watch stops three hours after a page last asked, and a first render shows the last hour."
+    },
+    {
+      "name": "pictures",
+      "type": "select",
+      "label": "Pictures",
+      "default": "photos",
+      "choices": [
+        {
+          "value": "photos",
+          "label": "Photographs (Wikimedia Commons)"
+        },
+        {
+          "value": "paintings",
+          "label": "AI paintings, each from a photograph"
+        }
+      ],
+      "help": "Photographs cost nothing and need no key: Wikimedia Commons by the vehicle's number in her class's category, or a photograph of her class where Commons has none of her own (marked so). AI paintings paint each vehicle once from that photograph, in the style below, at about US$0.04 a painting; needs a fal.ai key."
+    },
+    {
+      "name": "paint",
+      "type": "select",
+      "label": "Paint",
+      "default": "all",
+      "choices": [
+        {
+          "value": "all",
+          "label": "Every vehicle with a photograph, her own or her class's"
+        },
+        {
+          "value": "own",
+          "label": "Only vehicles with a photograph of their own"
+        }
+      ],
+      "show_if": {
+        "pictures": "paintings"
+      },
+      "help": "A painting from a photograph of her class keeps the class's shape and the operator's standard livery but not her own wrap or number, and is marked an impression. Only vehicles with a photograph of their own asks for no such painting; the rest show as the setting below says."
+    },
+    {
+      "name": "style",
+      "type": "select",
+      "label": "Style",
+      "default": "poster",
+      "choices": [
+        {
+          "value": "poster",
+          "label": "Vintage railway poster"
+        },
+        {
+          "value": "engraving_colour",
+          "label": "Hand-coloured engraving"
+        },
+        {
+          "value": "engraving",
+          "label": "Black-ink engraving"
+        },
+        {
+          "value": "technical",
+          "label": "Technical ink drawing"
+        },
+        {
+          "value": "watercolour",
+          "label": "Loose watercolour"
+        },
+        {
+          "value": "woodblock",
+          "label": "Japanese woodblock print"
+        },
+        {
+          "value": "linocut",
+          "label": "Linocut"
+        },
+        {
+          "value": "deco",
+          "label": "Art Deco travel poster"
+        },
+        {
+          "value": "midcentury",
+          "label": "Mid-century flat illustration"
+        },
+        {
+          "value": "pencil",
+          "label": "Pencil study"
+        },
+        {
+          "value": "pointillism",
+          "label": "Pointillism"
+        },
+        {
+          "value": "blueprint",
+          "label": "Blueprint"
+        },
+        {
+          "value": "cutaway",
+          "label": "Magazine cutaway"
+        },
+        {
+          "value": "stamp",
+          "label": "Postage stamp"
+        },
+        {
+          "value": "tattoo",
+          "label": "Tattoo flash"
+        },
+        {
+          "value": "riso",
+          "label": "Risograph"
+        },
+        {
+          "value": "pixel",
+          "label": "Pixel art"
+        },
+        {
+          "value": "lowpoly",
+          "label": "Low-poly render"
+        },
+        {
+          "value": "papercraft",
+          "label": "Paper craft"
+        },
+        {
+          "value": "toybrick",
+          "label": "Toy bricks"
+        },
+        {
+          "value": "charcoal",
+          "label": "Charcoal"
+        },
+        {
+          "value": "stained_glass",
+          "label": "Stained glass"
+        },
+        {
+          "value": "gilt",
+          "label": "Illuminated manuscript"
+        },
+        {
+          "value": "pulp",
+          "label": "Pulp cover"
+        },
+        {
+          "value": "synthwave",
+          "label": "Synthwave"
+        },
+        {
+          "value": "chalk",
+          "label": "Chalkboard"
+        },
+        {
+          "value": "builder",
+          "label": "Build my own"
+        },
+        {
+          "value": "custom",
+          "label": "Your own prompt"
+        }
+      ],
+      "show_if": {
+        "pictures": "paintings"
+      }
+    },
+    {
+      "name": "custom_style",
+      "type": "textarea",
+      "label": "Your own prompt",
+      "default": "",
+      "show_if": {
+        "pictures": "paintings",
+        "style": "custom"
+      },
+      "presets": [
+        {
+          "label": "Gouache poster",
+          "value": "a vintage railway poster in gouache: flat confident shapes, a warm limited palette, crisp edges"
+        },
+        {
+          "label": "Cutaway",
+          "value": "a 1950s magazine cutaway illustration: the body opened to show the seats and the driver's cab, labelled in small neat capitals"
+        },
+        {
+          "label": "Chalk pastel",
+          "value": "a chalk pastel drawing on grey paper, soft and smudgy, with the sun catching the side of the tram"
+        },
+        {
+          "label": "Railway art",
+          "value": "a traditional oil painting in the manner of classic railway art: dramatic light, polished steel, confident brushwork"
+        },
+        {
+          "label": "Comic ink",
+          "value": "a comic-book ink drawing with bold outlines, hatched shadows and flat halftone colour"
+        },
+        {
+          "label": "Neon line",
+          "value": "a single-weight neon line drawing on white: one continuous glowing line describing the tram"
+        }
+      ],
+      "help": "The medium and the look; the widget adds the vehicle, her photograph and the paper. Pick an example above to start from."
+    },
+    {
+      "name": "build_medium",
+      "type": "select",
+      "label": "Medium",
+      "default": "gouache",
+      "choices": [
+        {
+          "value": "gouache",
+          "label": "Gouache"
+        },
+        {
+          "value": "watercolour",
+          "label": "Watercolour"
+        },
+        {
+          "value": "oil",
+          "label": "Oil paint"
+        },
+        {
+          "value": "pastel",
+          "label": "Soft pastel"
+        },
+        {
+          "value": "coloured_pencil",
+          "label": "Coloured pencil"
+        },
+        {
+          "value": "pencil",
+          "label": "Graphite pencil"
+        },
+        {
+          "value": "ink",
+          "label": "Pen and ink"
+        },
+        {
+          "value": "engraving",
+          "label": "Engraving"
+        },
+        {
+          "value": "lithograph",
+          "label": "Lithograph"
+        },
+        {
+          "value": "woodblock",
+          "label": "Woodblock"
+        },
+        {
+          "value": "linocut",
+          "label": "Linocut"
+        },
+        {
+          "value": "screenprint",
+          "label": "Screen print"
+        },
+        {
+          "value": "vector",
+          "label": "Flat vector"
+        },
+        {
+          "value": "airbrush",
+          "label": "Airbrush"
+        },
+        {
+          "value": "papercut",
+          "label": "Paper cut"
+        }
+      ],
+      "show_if": {
+        "pictures": "paintings",
+        "style": "builder"
+      }
+    },
+    {
+      "name": "build_period",
+      "type": "select",
+      "label": "Period or school",
+      "default": "",
+      "choices": [
+        {
+          "value": "",
+          "label": "None in particular"
+        },
+        {
+          "value": "1930s",
+          "label": "1930s travel poster"
+        },
+        {
+          "value": "1950s",
+          "label": "1950s railway brochure"
+        },
+        {
+          "value": "1960s",
+          "label": "1960s streamline"
+        },
+        {
+          "value": "victorian",
+          "label": "Victorian technical plate"
+        },
+        {
+          "value": "bauhaus",
+          "label": "Bauhaus"
+        },
+        {
+          "value": "ukiyoe",
+          "label": "Ukiyo-e"
+        },
+        {
+          "value": "deco",
+          "label": "Art Deco"
+        },
+        {
+          "value": "retrofuture",
+          "label": "Retro-futurism"
+        }
+      ],
+      "show_if": {
+        "pictures": "paintings",
+        "style": "builder"
+      }
+    },
+    {
+      "name": "build_palette",
+      "type": "select",
+      "label": "Palette",
+      "default": "",
+      "choices": [
+        {
+          "value": "",
+          "label": "As the livery is"
+        },
+        {
+          "value": "limited",
+          "label": "A few warm tones"
+        },
+        {
+          "value": "muted",
+          "label": "Muted"
+        },
+        {
+          "value": "vivid",
+          "label": "Vivid"
+        },
+        {
+          "value": "duotone",
+          "label": "Two inks"
+        },
+        {
+          "value": "mono",
+          "label": "Black and white"
+        },
+        {
+          "value": "sepia",
+          "label": "Sepia"
+        }
+      ],
+      "show_if": {
+        "pictures": "paintings",
+        "style": "builder"
+      }
+    },
+    {
+      "name": "build_line",
+      "type": "select",
+      "label": "Line",
+      "default": "",
+      "choices": [
+        {
+          "value": "",
+          "label": "As the medium has it"
+        },
+        {
+          "value": "fine",
+          "label": "Fine"
+        },
+        {
+          "value": "bold",
+          "label": "Bold"
+        },
+        {
+          "value": "none",
+          "label": "No outlines"
+        },
+        {
+          "value": "sketchy",
+          "label": "Sketchy"
+        }
+      ],
+      "show_if": {
+        "pictures": "paintings",
+        "style": "builder"
+      }
+    },
+    {
+      "name": "build_texture",
+      "type": "select",
+      "label": "Texture",
+      "default": "",
+      "choices": [
+        {
+          "value": "",
+          "label": "As the medium has it"
+        },
+        {
+          "value": "paper",
+          "label": "Paper grain"
+        },
+        {
+          "value": "print",
+          "label": "Print texture"
+        },
+        {
+          "value": "smooth",
+          "label": "Smooth"
+        },
+        {
+          "value": "halftone",
+          "label": "Halftone"
+        }
+      ],
+      "show_if": {
+        "pictures": "paintings",
+        "style": "builder"
+      }
+    },
+    {
+      "name": "build_mood",
+      "type": "select",
+      "label": "Mood",
+      "default": "",
+      "choices": [
+        {
+          "value": "",
+          "label": "Plain"
+        },
+        {
+          "value": "heroic",
+          "label": "Heroic"
+        },
+        {
+          "value": "calm",
+          "label": "Calm"
+        },
+        {
+          "value": "nostalgic",
+          "label": "Nostalgic"
+        },
+        {
+          "value": "technical",
+          "label": "Precise"
+        }
+      ],
+      "show_if": {
+        "pictures": "paintings",
+        "style": "builder"
+      }
+    },
+    {
+      "name": "build_extra",
+      "type": "string",
+      "label": "Your own words",
+      "default": "",
+      "show_if": {
+        "pictures": "paintings",
+        "style": "builder"
+      },
+      "help": "Added to the style: for example, with a little gold leaf on the pantograph."
+    },
+    {
+      "name": "backdrop",
+      "type": "select",
+      "label": "Backdrop",
+      "default": "street",
+      "choices": [
+        {
+          "value": "street",
+          "label": "A city street"
+        },
+        {
+          "value": "platform",
+          "label": "At the platform"
+        },
+        {
+          "value": "bridge",
+          "label": "Over a bridge"
+        },
+        {
+          "value": "country",
+          "label": "Through the country"
+        },
+        {
+          "value": "night",
+          "label": "Night"
+        },
+        {
+          "value": "rain",
+          "label": "Rain"
+        },
+        {
+          "value": "ornate",
+          "label": "Ornate framed plate"
+        },
+        {
+          "value": "live",
+          "label": "The street as it is now: time of day and weather"
+        }
+      ],
+      "show_if": {
+        "pictures": "paintings"
+      },
+      "help": "None keeps the vehicle alone on the page, cut out. The rest paint a whole picture that fills its frame, in the same style. The street as it is now takes the time of day and the weather (Open-Meteo) at the place, and paints each condition once per vehicle, so a changing sky costs more paintings."
+    },
+    {
+      "name": "fidelity",
+      "type": "select",
+      "label": "Faithfulness",
+      "default": "photo",
+      "choices": [
+        {
+          "value": "photo",
+          "label": "As photographed: the same angle, every mark of the livery"
+        },
+        {
+          "value": "free",
+          "label": "Drawn afresh: the model's own composition, the view below"
+        }
+      ],
+      "show_if": {
+        "pictures": "paintings"
+      }
+    },
+    {
+      "name": "view",
+      "type": "select",
+      "label": "View",
+      "default": "side",
+      "choices": [
+        {
+          "value": "side",
+          "label": "From the side, a little to the front"
+        },
+        {
+          "value": "profile",
+          "label": "Side-on: a pure profile, as a builder's drawing"
+        },
+        {
+          "value": "quarter",
+          "label": "From the front three-quarter, coming on"
+        },
+        {
+          "value": "head",
+          "label": "Head-on"
+        }
+      ],
+      "show_if": {
+        "pictures": "paintings",
+        "fidelity": "free"
+      }
+    },
+    {
+      "name": "model",
+      "type": "select",
+      "label": "Model",
+      "default": "nano_banana",
+      "choices": [
+        {
+          "value": "nano_banana",
+          "label": "Nano Banana (about US$0.04)"
+        },
+        {
+          "value": "nano_banana_pro",
+          "label": "Nano Banana Pro (about US$0.15)"
+        },
+        {
+          "value": "flux_kontext",
+          "label": "FLUX.1 Kontext Pro (about US$0.04)"
+        },
+        {
+          "value": "gpt_image",
+          "label": "GPT Image 2 (about US$0.05)"
+        },
+        {
+          "value": "seedream",
+          "label": "Seedream 4 (about US$0.03)"
+        }
+      ],
+      "show_if": {
+        "pictures": "paintings"
+      },
+      "help": "All on fal.ai, all painting from the photograph."
+    },
+    {
+      "name": "unpainted",
+      "type": "select",
+      "label": "Until the vehicle is painted",
+      "default": "photo",
+      "choices": [
+        {
+          "value": "photo",
+          "label": "Show her photograph"
+        },
+        {
+          "value": "silhouette",
+          "label": "Show a silhouette"
+        },
+        {
+          "value": "skip",
+          "label": "Only a painted vehicle: the nearest one already painted"
+        }
+      ],
+      "show_if": {
+        "pictures": "paintings"
+      }
+    },
+    {
+      "name": "labels",
+      "type": "multiselect",
+      "label": "Label lines",
+      "default": [
+        "line",
+        "status",
+        "distance"
+      ],
+      "help": "In this order, under or beside each vehicle.",
+      "choices": [
+        {
+          "value": "type",
+          "label": "Class"
+        },
+        {
+          "value": "line",
+          "label": "Line or route"
+        },
+        {
+          "value": "number",
+          "label": "Fleet number"
+        },
+        {
+          "value": "operator",
+          "label": "Operator"
+        },
+        {
+          "value": "status",
+          "label": "At a stop or between"
+        },
+        {
+          "value": "speed",
+          "label": "Speed"
+        },
+        {
+          "value": "distance",
+          "label": "Distance and bearing"
+        },
+        {
+          "value": "heading",
+          "label": "Heading"
+        },
+        {
+          "value": "seen",
+          "label": "When she was within reach"
+        }
+      ]
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "label": "Title",
+      "default": "",
+      "help": "Blank uses the place."
+    },
+    {
+      "name": "header",
+      "type": "select",
+      "label": "Title line",
+      "default": "top",
+      "choices": [
+        {
+          "value": "top",
+          "label": "Above the page"
+        },
+        {
+          "value": "bottom",
+          "label": "Below the page"
+        },
+        {
+          "value": "hidden",
+          "label": "Hidden"
+        }
+      ]
+    },
+    {
+      "name": "footer",
+      "type": "select",
+      "label": "Foot of the page",
+      "default": "show",
+      "choices": [
+        {
+          "value": "show",
+          "label": "Status and credits"
+        },
+        {
+          "value": "credits",
+          "label": "Credits only"
+        },
+        {
+          "value": "hide",
+          "label": "Nothing"
+        }
+      ]
+    },
+    {
+      "name": "paper",
+      "type": "select",
+      "label": "Paper",
+      "default": "cream",
+      "choices": [
+        {
+          "value": "cream",
+          "label": "Cream"
+        },
+        {
+          "value": "white",
+          "label": "White"
+        },
+        {
+          "value": "aged",
+          "label": "Aged"
+        },
+        {
+          "value": "blueprint",
+          "label": "Blueprint: pale ink on blue"
+        },
+        {
+          "value": "sky",
+          "label": "A soft sky wash"
+        }
+      ]
+    },
+    {
+      "name": "panel",
+      "type": "select",
+      "label": "Panel",
+      "default": "colour",
+      "choices": [
+        {
+          "value": "colour",
+          "label": "Colour"
+        },
+        {
+          "value": "gray16",
+          "label": "16 greys"
+        },
+        {
+          "value": "gray4",
+          "label": "4 greys"
+        },
+        {
+          "value": "mono",
+          "label": "Black and white"
+        }
+      ],
+      "help": "What the panel can show. Pictures are converted and contrast-stretched to match."
+    },
+    {
+      "name": "text_size",
+      "type": "select",
+      "label": "Text size",
+      "default": "100",
+      "choices": [
+        {
+          "value": "60",
+          "label": "60%"
+        },
+        {
+          "value": "80",
+          "label": "80%"
+        },
+        {
+          "value": "100",
+          "label": "100%"
+        },
+        {
+          "value": "125",
+          "label": "125%"
+        },
+        {
+          "value": "150",
+          "label": "150%"
+        }
+      ]
+    },
+    {
+      "name": "font",
+      "type": "select",
+      "label": "Type",
+      "default": "fell",
+      "choices": [
+        {
+          "value": "fell",
+          "label": "IM Fell English: the old plate"
+        },
+        {
+          "value": "archivo",
+          "label": "Archivo Narrow: clean and plain"
+        },
+        {
+          "value": "georgia",
+          "label": "Georgia: a modern serif"
+        },
+        {
+          "value": "page",
+          "label": "The dashboard's own font"
+        }
+      ]
+    }
+  ],
+  "data_schema": {
+    "fields": [
+      {
+        "name": "title",
+        "type": "str",
+        "label": "Title"
+      },
+      {
+        "name": "within",
+        "type": "num",
+        "label": "Trains and trams within reach"
+      },
+      {
+        "name": "vehicles",
+        "type": "arr",
+        "label": "Trains and trams shown"
+      }
+    ]
+  }
+}

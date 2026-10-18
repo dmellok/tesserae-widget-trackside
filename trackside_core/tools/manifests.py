@@ -1,0 +1,608 @@
+"""Write the four widgets' plugin.json and the core's from one description,
+so the shared options never drift apart. Run after editing: python tools/manifests.py"""
+
+from __future__ import annotations
+
+# The painter imports Tesserae's ``app.artwork`` (0.463+); outside the server,
+# the repo beside this one (or TESSERAE_REPO) is put on the path.
+import os as _os
+import sys as _sys
+from pathlib import Path as _Path
+
+_TESSERAE = _Path(
+    _os.environ.get("TESSERAE_REPO")
+    or _Path(__file__).resolve().parents[3] / "tesserae"
+)
+if str(_TESSERAE) not in _sys.path:
+    _sys.path.insert(0, str(_TESSERAE))
+
+import importlib.util as _ilu
+import json
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+VERSION = "0.1.0"
+TESSERAE_MIN = "0.463.0"
+
+
+def _load(name):
+    spec = _ilu.spec_from_file_location(
+        f"_tesserae_plugins.trackside_core.{name}",
+        ROOT / "trackside_core" / "lib" / f"{name}.py",
+    )
+    mod = _ilu.module_from_spec(spec)
+    sys.modules[spec.name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+_paint = _load("paint")
+_rt = _load("rt")
+STYLES = [(k, v[0]) for k, v in _paint.STYLES.items()] + [
+    ("builder", "Build my own"),
+    ("custom", "Your own prompt"),
+]
+BUILDER = {
+    name: (label, default, [(v, lab) for v, lab, _p in choices])
+    for name, (label, default, choices) in _paint.BUILDER.items()
+}
+PRESETS = [
+    {"label": p["label"], "value": p["value"].replace("{kind}", "tram")}
+    for p in _paint.CUSTOM_PRESETS
+]
+BACKDROPS = [(k, v[0]) for k, v in _paint.BACKDROPS.items()]
+MODELS = [(k, f"{v['label']} ({v['cost']})") for k, v in _paint.MODELS.items()]
+
+
+def sel(name, label, default, choices, **kw):
+    return {
+        "name": name,
+        "type": "select",
+        "label": label,
+        "default": default,
+        "choices": [{"value": v, "label": l} for v, l in choices],
+        **kw,
+    }
+
+
+def where_options():
+    custom = {"source": "custom"}
+    return [
+        sel(
+            "source",
+            "Positions from",
+            "melbourne",
+            [(k, p["label"]) for k, p in _rt.PRESETS.items()]
+            + [("custom", "Another agency's GTFS-Realtime feed")],
+            help="Melbourne reads Transport Victoria's three vehicle-position feeds (Metro Trains, Yarra Trams, V/Line) with the free key in the Trackside Core settings. The others need no key. Another agency: most publish their vehicle positions as GTFS-Realtime; give the feed's link below.",
+        ),
+        {
+            "name": "feed_urls",
+            "type": "textarea",
+            "label": "Vehicle positions feeds",
+            "default": "",
+            "show_if": custom,
+            "help": "One GTFS-Realtime VehiclePositions link a line, up to four (the agency's open data page names them).",
+        },
+        {
+            "name": "key_header",
+            "type": "string",
+            "label": "Key header",
+            "default": "",
+            "show_if": custom,
+            "help": "The HTTP header the agency wants its key in, for example x-api-key or Authorization. Blank for a feed without a key.",
+        },
+        {
+            "name": "feed_key",
+            "type": "string",
+            "label": "Key",
+            "default": "",
+            "secret": True,
+            "show_if": custom,
+        },
+        {
+            "name": "operator",
+            "type": "string",
+            "label": "Operator, for the photographs",
+            "default": "",
+            "show_if": custom,
+            "help": "The name Wikimedia Commons knows the operator by (for example Sydney Trains); the widget looks for a photograph of each vehicle by this and her number.",
+        },
+        {
+            "name": "location",
+            "type": "location_search",
+            "label": "Place",
+            "default": "",
+            "help": "The point the distances and bearings are from. Falls back to the app's location.",
+        },
+        sel(
+            "radius_km",
+            "Within",
+            "3",
+            [(v, f"{v} km") for v in ("1", "2", "3", "5", "10", "15", "25")],
+        ),
+        {
+            "name": "modes",
+            "type": "multiselect",
+            "label": "Show",
+            "default": ["tram", "train", "regional", "subway"],
+            "choices": [
+                {"value": "tram", "label": "Trams and light rail"},
+                {"value": "train", "label": "Suburban trains"},
+                {"value": "regional", "label": "Regional trains"},
+                {"value": "subway", "label": "Subway and metro"},
+            ],
+        },
+        sel(
+            "order",
+            "Order",
+            "nearest",
+            [
+                ("nearest", "Nearest first"),
+                ("fastest", "Fastest first"),
+                ("longest", "Longest first"),
+            ],
+        ),
+        sel(
+            "period",
+            "When",
+            "now",
+            [
+                ("now", "What is within reach now"),
+                ("since", "Everything that passed since the last render"),
+            ],
+            help="Since the last render keeps a watch on the place between renders (the feeds asked every minute) and shows every train and tram seen since the page was last drawn for a panel, each at her closest approach with the time. The editor's previews show the same window without moving it on; the watch stops three hours after a page last asked, and a first render shows the last hour.",
+        ),
+    ]
+
+
+def picture_options(with_backdrop, many, scene=False):
+    show = {"pictures": "paintings"}
+    out = [
+        sel(
+            "pictures",
+            "Pictures",
+            "photos",
+            [
+                ("photos", "Photographs (Wikimedia Commons)"),
+                ("paintings", "AI paintings, each from a photograph"),
+            ],
+            help="Photographs cost nothing and need no key: Wikimedia Commons by the vehicle's number in her class's category, or a photograph of her class where Commons has none of her own (marked so). AI paintings paint each vehicle once from that photograph, in the style below, at about US$0.04 a painting; needs a fal.ai key.",
+        ),
+        sel(
+            "paint",
+            "Paint",
+            "all",
+            [
+                ("all", "Every vehicle with a photograph, her own or her class's"),
+                ("own", "Only vehicles with a photograph of their own"),
+            ],
+            show_if=show,
+            help="A painting from a photograph of her class keeps the class's shape and the operator's standard livery but not her own wrap or number, and is marked an impression. Only vehicles with a photograph of their own asks for no such painting; the rest show as the setting below says.",
+        ),
+        sel("style", "Style", "poster", STYLES, show_if=show),
+        {
+            "name": "custom_style",
+            "type": "textarea",
+            "label": "Your own prompt",
+            "default": "",
+            "show_if": {"pictures": "paintings", "style": "custom"},
+            "presets": PRESETS,
+            "help": "The medium and the look; the widget adds the vehicle, her photograph and the paper. Pick an example above to start from.",
+        },
+    ]
+    for name, (label, default, choices) in BUILDER.items():
+        out.append(
+            sel(
+                f"build_{name}",
+                label,
+                default,
+                choices,
+                show_if={"pictures": "paintings", "style": "builder"},
+            )
+        )
+    out.append(
+        {
+            "name": "build_extra",
+            "type": "string",
+            "label": "Your own words",
+            "default": "",
+            "show_if": {"pictures": "paintings", "style": "builder"},
+            "help": "Added to the style: for example, with a little gold leaf on the pantograph.",
+        }
+    )
+    if with_backdrop:
+        out.append(
+            sel(
+                "backdrop",
+                "Backdrop",
+                "street" if scene else "none",
+                BACKDROPS if not scene else BACKDROPS[1:],
+                show_if=show,
+                help="None keeps the vehicle alone on the page, cut out. The rest paint a whole picture that fills its frame, in the same style. The street as it is now takes the time of day and the weather (Open-Meteo) at the place, and paints each condition once per vehicle, so a changing sky costs more paintings.",
+            )
+        )
+    out.append(
+        sel(
+            "fidelity",
+            "Faithfulness",
+            "photo",
+            [
+                ("photo", "As photographed: the same angle, every mark of the livery"),
+                ("free", "Drawn afresh: the model's own composition, the view below"),
+            ],
+            show_if=show,
+        )
+    )
+    out.append(
+        sel(
+            "view",
+            "View",
+            "side",
+            [
+                (
+                    k,
+                    {
+                        "side": "From the side, a little to the front",
+                        "profile": "Side-on: a pure profile, as a builder's drawing",
+                        "quarter": "From the front three-quarter, coming on",
+                        "head": "Head-on",
+                    }[k],
+                )
+                for k in _paint.VIEWS
+            ],
+            show_if={"pictures": "paintings", "fidelity": "free"},
+        )
+    )
+    out.append(
+        sel(
+            "model",
+            "Model",
+            "nano_banana",
+            MODELS,
+            show_if=show,
+            help="All on fal.ai, all painting from the photograph.",
+        )
+    )
+    if many:
+        out.append(
+            sel(
+                "unpainted",
+                "Until a vehicle is painted",
+                "silhouette",
+                [
+                    ("silhouette", "Show a silhouette"),
+                    ("photo", "Show her photograph"),
+                    ("skip", "Only painted vehicles: leave the rest off the page"),
+                ],
+                show_if=show,
+            )
+        )
+    else:
+        out.append(
+            sel(
+                "unpainted",
+                "Until the vehicle is painted",
+                "photo",
+                [
+                    ("photo", "Show her photograph"),
+                    ("silhouette", "Show a silhouette"),
+                    ("skip", "Only a painted vehicle: the nearest one already painted"),
+                ],
+                show_if=show,
+            )
+        )
+    return out
+
+
+def page_options(labels_default):
+    return [
+        {
+            "name": "labels",
+            "type": "multiselect",
+            "label": "Label lines",
+            "default": labels_default,
+            "help": "In this order, under or beside each vehicle.",
+            "choices": [
+                {"value": v, "label": l}
+                for v, l in [
+                    ("type", "Class"),
+                    ("line", "Line or route"),
+                    ("number", "Fleet number"),
+                    ("operator", "Operator"),
+                    ("status", "At a stop or between"),
+                    ("speed", "Speed"),
+                    ("distance", "Distance and bearing"),
+                    ("heading", "Heading"),
+                    ("seen", "When she was within reach"),
+                ]
+            ],
+        },
+        {
+            "name": "title",
+            "type": "string",
+            "label": "Title",
+            "default": "",
+            "help": "Blank uses the place.",
+        },
+        sel(
+            "header",
+            "Title line",
+            "top",
+            [
+                ("top", "Above the page"),
+                ("bottom", "Below the page"),
+                ("hidden", "Hidden"),
+            ],
+        ),
+        sel(
+            "footer",
+            "Foot of the page",
+            "show",
+            [
+                ("show", "Status and credits"),
+                ("credits", "Credits only"),
+                ("hide", "Nothing"),
+            ],
+        ),
+        sel(
+            "paper",
+            "Paper",
+            "cream",
+            [
+                ("cream", "Cream"),
+                ("white", "White"),
+                ("aged", "Aged"),
+                ("blueprint", "Blueprint: pale ink on blue"),
+                ("sky", "A soft sky wash"),
+            ],
+        ),
+        sel(
+            "panel",
+            "Panel",
+            "colour",
+            [
+                ("colour", "Colour"),
+                ("gray16", "16 greys"),
+                ("gray4", "4 greys"),
+                ("mono", "Black and white"),
+            ],
+            help="What the panel can show. Pictures are converted and contrast-stretched to match.",
+        ),
+        sel(
+            "text_size",
+            "Text size",
+            "100",
+            [(v, f"{v}%") for v in ("60", "80", "100", "125", "150")],
+        ),
+        sel(
+            "font",
+            "Type",
+            "fell",
+            [
+                ("fell", "IM Fell English: the old plate"),
+                ("archivo", "Archivo Narrow: clean and plain"),
+                ("georgia", "Georgia: a modern serif"),
+                ("page", "The dashboard's own font"),
+            ],
+        ),
+    ]
+
+
+WIDGETS = {
+    "trackside_photo": {
+        "name": "Trackside: Photo",
+        "icon": "ph-train",
+        "description": "The nearest train or tram to a place, right now, as a full-bleed photograph of the very vehicle or her class (Wikimedia Commons), with her number, class, line and distance, and the next few along a strip. Melbourne with a free key, or any agency's GTFS-Realtime feed.",
+        "options": lambda: (
+            where_options()
+            + [
+                {
+                    "name": "strip",
+                    "type": "number",
+                    "label": "More along the strip",
+                    "default": 4,
+                    "help": "0 to 8 after the nearest.",
+                },
+                sel(
+                    "photo_fit",
+                    "Photograph",
+                    "cover",
+                    [("cover", "Fills the page"), ("contain", "Fits inside the page")],
+                ),
+            ]
+            + page_options(["line", "speed", "distance"])
+        ),
+    },
+    "trackside_plate": {
+        "name": "Trackside: Plate",
+        "icon": "ph-frame-corners",
+        "description": "One train or tram near you as a plate: painted from her photograph in a style of your choosing, in a ruled frame, with her particulars beside her; or one of four modern looks in her operator's colours.",
+        "options": lambda: (
+            where_options()
+            + picture_options(True, False)
+            + page_options(["line", "status", "distance"])
+            + [
+                sel(
+                    "look",
+                    "Look",
+                    "plate",
+                    [
+                        (
+                            "plate",
+                            "The plate: a ruled frame, the particulars beside it",
+                        ),
+                        ("pass", "Ticket: the picture, a panel of particulars"),
+                        ("tiles", "Tiles: a bar, the picture, a tile for each figure"),
+                        (
+                            "poster",
+                            "Poster: the picture full-bleed, the particulars over it",
+                        ),
+                        ("split", "Split: the picture framed on a dark page"),
+                    ],
+                ),
+                sel(
+                    "colours",
+                    "Colours",
+                    "operator",
+                    [
+                        (
+                            "operator",
+                            "The operator's own: Yarra Trams green, Metro blue, V/Line purple",
+                        ),
+                        ("paper", "Paper and ink"),
+                    ],
+                ),
+            ]
+        ),
+    },
+    "trackside_lineup": {
+        "name": "Trackside: Line-up",
+        "icon": "ph-tram",
+        "description": "Every train and tram near a place on one page: each painted from her photograph and cut out, sized by her length, with a caption; or, with photographs, a spotter's log of cards. Twenty-six styles, a style builder and your own prompt.",
+        "options": lambda: (
+            where_options()
+            + [
+                {
+                    "name": "count",
+                    "type": "number",
+                    "label": "How many",
+                    "default": 6,
+                    "help": "1 to 12.",
+                }
+            ]
+            + picture_options(False, True)
+            + [
+                {
+                    "name": "scale",
+                    "type": "slider",
+                    "label": "Scale",
+                    "default": 100,
+                    "min": 40,
+                    "max": 100,
+                    "step": 5,
+                    "unit": "%",
+                    "show_if": {"pictures": "paintings"},
+                },
+            ]
+            + page_options(["type", "line", "distance"])
+        ),
+    },
+    "trackside_scene": {
+        "name": "Trackside: Scene",
+        "icon": "ph-buildings",
+        "description": "The nearest train or tram as one whole painting across the page: the vehicle from her photograph in a painted street, at the platform, over a bridge, through the country, at night or in the rain, with her particulars set over it.",
+        "options": lambda: (
+            where_options()
+            + picture_options(True, False, scene=True)
+            + page_options(["line", "status", "distance"])
+        ),
+    },
+}
+
+CORE = {
+    "tesserae_compat": "1.x",
+    "tesserae_min": TESSERAE_MIN,
+    "name": "Trackside Core",
+    "version": VERSION,
+    "kind": "data",
+    "description": "The settings and the paintings page for the Trackside widgets (trackside_photo, trackside_plate, trackside_lineup, trackside_scene): the Transport Victoria key, the fal.ai key, the contact for Wikimedia Commons and the daily painting budget. No widget of its own.",
+    "icon": "ph-train",
+    "supports": {"sizes": []},
+    "requires": ["network:*"],
+    "settings": [
+        {
+            "name": "vic_key",
+            "type": "string",
+            "label": "Transport Victoria open data key",
+            "secret": True,
+            "default": "",
+            "help": "For Melbourne's trains and trams. Free: sign up at https://opendata.transport.vic.gov.au, then make an API key under your account. It is sent only to api.opendata.transport.vic.gov.au, in the KeyID header. Not needed for the other places or a feed of your own.",
+        },
+        {
+            "name": "fal_api_key",
+            "type": "string",
+            "label": "fal.ai API key (AI paintings)",
+            "secret": True,
+            "default": "",
+            "help": "With a key the widgets can paint each vehicle from her photograph, at about US$0.04 a painting, once per vehicle and style. Leave it blank to use the key under Settings › Generative AI. Without either the widgets show photographs.",
+        },
+        {
+            "name": "contact",
+            "type": "string",
+            "label": "Contact for Wikimedia Commons",
+            "default": "",
+            "help": "An email address or a web page, sent in the widget's User-Agent as Wikimedia asks of every application that reads its API. The widget names its own project page by default.",
+        },
+        {
+            "name": "gen_daily_usd",
+            "type": "slider",
+            "label": "Painting budget per day",
+            "default": 4,
+            "min": 0,
+            "max": 30,
+            "step": 1,
+            "unit": "US$",
+            "help": "The most the widgets may spend on new paintings in a day, at the models' listed prices. 0 is no limit, within the ceiling under Settings › Generative AI. Paintings are kept, so a vehicle in a style only costs once; a class painted from a class photograph is shared by every vehicle of that class.",
+        },
+        {
+            "name": "gen_per_refresh",
+            "type": "number",
+            "label": "New paintings started per preview",
+            "default": 3,
+            "help": "How many new paintings one settled preview in the editor may start (1 to 50). A panel's own render starts what its page needs, within the daily budget.",
+        },
+        {
+            "name": "gen_parallel",
+            "type": "number",
+            "label": "Paintings made at once",
+            "default": 3,
+            "help": "How many paintings fal.ai works on side by side (1 to 8).",
+        },
+    ],
+}
+
+for wid, w in WIDGETS.items():
+    manifest = {
+        "tesserae_compat": "1.x",
+        "name": w["name"],
+        "version": VERSION,
+        "kind": "widget",
+        "tesserae_min": TESSERAE_MIN,
+        "description": w["description"],
+        "icon": w["icon"],
+        "supports": {"sizes": ["sm", "md", "lg"]},
+        "requires": [
+            "network:*",
+            "settings:plugin/trackside_core",
+            "plugin:trackside_core",
+        ],
+        "render": {"needs_network": True, "warm_ahead_s": 150},
+        "design": {"palette": "extended"},
+        "cell_options": w["options"](),
+        "data_schema": {
+            "fields": [
+                {"name": "title", "type": "str", "label": "Title"},
+                {
+                    "name": "within",
+                    "type": "num",
+                    "label": "Trains and trams within reach",
+                },
+                {"name": "vehicles", "type": "arr", "label": "Trains and trams shown"},
+            ]
+        },
+    }
+    names = [o["name"] for o in manifest["cell_options"]]
+    assert len(names) == len(set(names)), (
+        wid,
+        [n for n in names if names.count(n) > 1],
+    )
+    (ROOT / wid / "plugin.json").write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    print(wid, len(names), "options")
+(ROOT / "trackside_core" / "plugin.json").write_text(
+    json.dumps(CORE, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+)
+print("trackside_core", len(CORE["settings"]), "settings")
