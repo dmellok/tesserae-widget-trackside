@@ -182,6 +182,117 @@ def _jpeg(w=600, h=400, blob=True, paper=(255, 255, 255)) -> bytes:
     return out.getvalue()
 
 
+PTV_ID, PTV_KEY = "3000001", "11111111-2222-3333-4444-555555555555"
+
+
+def ptv_answer(url):
+    """The Timetable API, answering only a correctly signed request."""
+    import hmac
+    import hashlib
+
+    path, _, sig = url.split("timetableapi.ptv.vic.gov.au", 1)[1].rpartition(
+        "&signature="
+    )
+    want = hmac.new(PTV_KEY.encode(), path.encode(), hashlib.sha1).hexdigest().upper()
+    if sig != want or f"devid={PTV_ID}" not in path:
+        return None, "auth"
+    if path.startswith("/v3/stops/location/"):
+        return json.dumps(
+            {
+                "stops": [
+                    {
+                        "stop_id": 1071,
+                        "stop_name": "Flinders Street ",
+                        "route_type": 0,
+                        "stop_latitude": -37.8183,
+                        "stop_longitude": 144.9671,
+                    },
+                    {
+                        "stop_id": 2204,
+                        "stop_name": "Flinders Street Station/Swanston St #13 ",
+                        "route_type": 1,
+                        "stop_latitude": -37.8170,
+                        "stop_longitude": 144.9673,
+                    },
+                ]
+            }
+        ).encode(), None
+    soon = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + 240))
+    late = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + 3600))
+    if "/route_type/0/" in path:
+        return json.dumps(
+            {
+                "departures": [
+                    {"run_ref": "1", "route_id": 6},
+                    {"run_ref": "2", "route_id": 6},
+                    {"run_ref": "3", "route_id": 6},
+                ],
+                "runs": {
+                    "1": {
+                        "destination_name": "Frankston",
+                        "vehicle_position": {
+                            "latitude": -37.8188,
+                            "longitude": 144.9661,
+                            "bearing": 68.8,
+                        },
+                        "vehicle_descriptor": {
+                            "id": "2533T-2542T-765M-766M-783M-784M",
+                            "description": "6 Car Siemens",
+                        },
+                    },
+                    "2": {
+                        "destination_name": "Werribee",
+                        "vehicle_position": {
+                            "latitude": -37.95,
+                            "longitude": 144.70,
+                            "bearing": 200.0,
+                        },
+                        "vehicle_descriptor": {
+                            "id": "1178T-1179T-655M-656M",
+                            "description": "4 Car Comeng",
+                        },
+                    },
+                    "3": {
+                        "destination_name": "Sunbury",
+                        "vehicle_position": None,
+                        "vehicle_descriptor": {"id": "9039M-9939M"},
+                    },
+                },
+                "routes": {"6": {"route_name": "Frankston", "route_gtfs_id": "2-FKN"}},
+            }
+        ).encode(), None
+    return json.dumps(
+        {
+            "departures": [
+                {"run_ref": "28161", "route_id": 947, "estimated_departure_utc": soon},
+                {"run_ref": "28907", "route_id": 947, "scheduled_departure_utc": late},
+                {"run_ref": "1500", "route_id": 947, "estimated_departure_utc": soon},
+            ],
+            "runs": {
+                "28161": {
+                    "destination_name": "Melbourne University/Swanston St #1 ",
+                    "vehicle_descriptor": {"id": "3528", "operator": "Yarra Trams"},
+                },
+                "28907": {
+                    "destination_name": "Cotham Rd/Burke Rd #70 ",
+                    "vehicle_descriptor": {"id": "3509"},
+                },
+                "1500": {
+                    "destination_name": "Somewhere",
+                    "vehicle_descriptor": {"id": None},
+                },
+            },
+            "routes": {
+                "947": {
+                    "route_name": "Melbourne University - Camberwell",
+                    "route_number": "72",
+                    "route_gtfs_id": "3-072",
+                }
+            },
+        }
+    ).encode(), None
+
+
 @pytest.fixture
 def offline(monkeypatch):
     """Every call on the network, answered here; the prompts fal.ai got and the feed requests."""
@@ -206,6 +317,8 @@ def offline(monkeypatch):
                 return None, "auth"
             which = TRAMS if "/tram/" in url else METRO if "/metro/" in url else VLINE
             return feed(which), None
+        if "timetableapi.ptv.vic.gov.au" in url:
+            return ptv_answer(url)
         if "translink" in url:
             return feed(
                 [{"label": "14", "route": "L1-5029", "lat": -28.0, "lon": 153.43}]
@@ -306,7 +419,7 @@ def test_manifests_and_client_files():
     ):
         m = json.loads((ROOT / wid / "plugin.json").read_text(encoding="utf-8"))
         assert (
-            m["version"] == "0.1.0"
+            m["version"] == "0.2.0"
             and m["tesserae_compat"] == "1.x"
             and m["tesserae_min"] == "0.463.0"
         )
@@ -738,4 +851,75 @@ def test_side_views_for_the_painter(tmp_path, offline):
         len(prompts) == 1
         and "image_url" in prompts[0]
         and "image_urls" not in prompts[0]
+    )
+
+
+def test_melbourne_through_the_ptv_timetable_api(tmp_path, offline):
+    _prompts, asked = offline
+    url = R.ptv_url("/v3/route_types", PTV_ID, PTV_KEY)
+    assert (
+        url.startswith(
+            "https://timetableapi.ptv.vic.gov.au/v3/route_types?devid=3000001&signature="
+        )
+        and PTV_KEY not in url
+    ), "signed, the key never sent"
+    st = {**SETTINGS, "ptv_devid": PTV_ID, "ptv_key": PTV_KEY}
+    r = lineup.fetch(
+        {
+            **FLINDERS,
+            "source": "ptv",
+            "pictures": "photos",
+            "labels": ["type", "line", "dest", "distance"],
+        },
+        st,
+        ctx=_ctx(tmp_path),
+    )
+    assert r["state"] == "ok" and r["attribution"] == "positions from PTV"
+    by = {v["vid"]: v for v in r["vehicles"]}
+    assert set(by) == {"2533T-2542T-765M-766M-783M-784M", "3528"}, (
+        "the far train, the train without a position, the tram due in an hour and the tram without a number left out"
+    )
+    train = by["2533T-2542T-765M-766M-783M-784M"]
+    assert (
+        train["typ"] == "Siemens Nexas, 6 cars"
+        and train["cs"] == "765M"
+        and train["line"] == "Frankston line"
+        and train["trk"] == 69
+    )
+    assert train["lines"] == [
+        "Siemens Nexas, 6 cars",
+        "Frankston line",
+        "0.1 km SW",
+    ], "the destination the line already names is left off"
+    tram = by["3528"]
+    assert (
+        tram["typ"] == "D1-class Combino tram"
+        and tram["line"] == "Route 72"
+        and tram["status"].startswith("due at Flinders Street Station/Swanston St in ")
+    )
+    assert (
+        "to Melbourne University/Swanston St" in tram["lines"]
+        and "bound for Melbourne University/Swanston St" in tram["about"]
+    )
+    # kept thirty seconds, the stops a day
+    n = len(asked)
+    lineup.fetch(
+        {**FLINDERS, "source": "ptv", "pictures": "photos"}, st, ctx=_ctx(tmp_path)
+    )
+    assert len(asked) == n
+    # a wrong key, or none, says so
+    r = lineup.fetch(
+        {**FLINDERS, "source": "ptv"},
+        {**st, "ptv_key": "wrong"},
+        ctx=_ctx(tmp_path / "x"),
+    )
+    assert r["state"] == "error" and "refused the developer id and key" in r["error"]
+    r = lineup.fetch({**FLINDERS, "source": "ptv"}, SETTINGS, ctx=_ctx(tmp_path / "y"))
+    assert r["state"] == "error" and "developer id and key" in r["error"]
+    # PTV's own description of the set comes before the car numbers
+    assert (
+        R.ptv_train(
+            {"id": "2534T-2563T-767M-768M-825M-826M", "description": "6 Car Comeng"}
+        )["typ"]
+        == "Comeng train, 6 cars"
     )

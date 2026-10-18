@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 TESSERAE_MIN = "0.463.0"
 
 
@@ -73,9 +73,15 @@ def where_options():
             "source",
             "Positions from",
             "melbourne",
-            [(k, p["label"]) for k, p in _rt.PRESETS.items()]
+            [
+                (
+                    "ptv",
+                    "Melbourne: PTV Timetable API (developer id and key): trains live with their destination, trams due at the stops near you",
+                )
+            ]
+            + [(k, p["label"]) for k, p in _rt.PRESETS.items()]
             + [("custom", "Another agency's GTFS-Realtime feed")],
-            help="Melbourne reads Transport Victoria's three vehicle-position feeds (Metro Trains, Yarra Trams, V/Line) with the free key in the Trackside Core settings. The others need no key. Another agency: most publish their vehicle positions as GTFS-Realtime; give the feed's link below.",
+            help="Melbourne two ways. The PTV Timetable API (a developer id and key from PTV) gives every Metro train's live position, cars and destination, and each tram by fleet number at the stop it is due at next, with the minutes to go; it has no live V/Line. Transport Victoria's open data (a different, free key) gives every train and tram's live position but no destinations. The others need no key. Another agency: most publish their vehicle positions as GTFS-Realtime; give the feed's link below.",
         ),
         {
             "name": "feed_urls",
@@ -314,6 +320,7 @@ def page_options(labels_default):
                 for v, l in [
                     ("type", "Class"),
                     ("line", "Line or route"),
+                    ("dest", "Where she is going"),
                     ("number", "Fleet number"),
                     ("operator", "Operator"),
                     ("status", "At a stop or between"),
@@ -517,6 +524,21 @@ CORE = {
     "supports": {"sizes": []},
     "requires": ["network:*"],
     "settings": [
+        {
+            "name": "ptv_devid",
+            "type": "string",
+            "label": "PTV Timetable API developer id",
+            "default": "",
+            "help": "For the PTV Timetable API source: the developer id PTV sent with your key (ask for one by email to APIKeyRequest@ptv.vic.gov.au, as their developer page says). Not needed for the open data source.",
+        },
+        {
+            "name": "ptv_key",
+            "type": "string",
+            "label": "PTV Timetable API key",
+            "secret": True,
+            "default": "",
+            "help": "The key that goes with the developer id. It never leaves this server: each request is signed with it, and only the signature is sent to timetableapi.ptv.vic.gov.au.",
+        },
         {
             "name": "vic_key",
             "type": "string",

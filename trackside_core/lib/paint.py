@@ -520,13 +520,15 @@ GEN_SIDE = (
     "window and section along her length shown. The first photograph is the authority for her livery, colours, "
     "markings and the shape of her cab; the second picture shows a {kind} of the same class from the side, and is "
     "the authority for her length, the number of sections, the number and spacing of the doors and windows, the "
-    "roof equipment and the bogies. Everything else in either picture, the street, the platform, other vehicles, "
+    "roof equipment and the bogies; the number, route sign and any advertising in the second picture are another "
+    "vehicle's and are not drawn. Everything else in either picture, the street, the platform, other vehicles, "
     "people, poles and wires, is left out{scene}. {page} No text or lettering beyond the livery's own, no border, "
     "no signature.{outline}"
 )
 SIDE_REF = (
     " The second picture shows a {kind} of the same class from the side: take her length, her sections and the "
-    "spacing of her doors and windows from it, and keep everything else from the first photograph."
+    "spacing of her doors and windows from it, never its number, route sign or advertising, and keep everything "
+    "else from the first photograph."
 )
 FIDELITIES = ("photo", "free", "side")
 PAGE_ALONE = (

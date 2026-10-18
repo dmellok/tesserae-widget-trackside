@@ -2,7 +2,7 @@
   "tesserae_compat": "1.x",
   "tesserae_min": "0.463.0",
   "name": "Trackside Core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "kind": "data",
   "description": "The settings and the paintings page for the Trackside widgets (trackside_photo, trackside_plate, trackside_lineup, trackside_scene): the Transport Victoria key, the fal.ai key, the contact for Wikimedia Commons and the daily painting budget. No widget of its own.",
   "icon": "ph-train",
@@ -13,6 +13,21 @@
     "network:*"
   ],
   "settings": [
+    {
+      "name": "ptv_devid",
+      "type": "string",
+      "label": "PTV Timetable API developer id",
+      "default": "",
+      "help": "For the PTV Timetable API source: the developer id PTV sent with your key (ask for one by email to APIKeyRequest@ptv.vic.gov.au, as their developer page says). Not needed for the open data source."
+    },
+    {
+      "name": "ptv_key",
+      "type": "string",
+      "label": "PTV Timetable API key",
+      "secret": true,
+      "default": "",
+      "help": "The key that goes with the developer id. It never leaves this server: each request is signed with it, and only the signature is sent to timetableapi.ptv.vic.gov.au."
+    },
     {
       "name": "vic_key",
       "type": "string",

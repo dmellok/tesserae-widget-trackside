@@ -1,7 +1,7 @@
 {
   "tesserae_compat": "1.x",
   "name": "Trackside: Scene",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "kind": "widget",
   "tesserae_min": "0.463.0",
   "description": "The nearest train or tram as one whole painting across the page: the vehicle from her photograph in a painted street, at the platform, over a bridge, through the country, at night or in the rain, with her particulars set over it.",
@@ -33,6 +33,10 @@
       "default": "melbourne",
       "choices": [
         {
+          "value": "ptv",
+          "label": "Melbourne: PTV Timetable API (developer id and key): trains live with their destination, trams due at the stops near you"
+        },
+        {
           "value": "melbourne",
           "label": "Melbourne: Metro Trains, Yarra Trams, V/Line (Transport Victoria, free key)"
         },
@@ -53,7 +57,7 @@
           "label": "Another agency's GTFS-Realtime feed"
         }
       ],
-      "help": "Melbourne reads Transport Victoria's three vehicle-position feeds (Metro Trains, Yarra Trams, V/Line) with the free key in the Trackside Core settings. The others need no key. Another agency: most publish their vehicle positions as GTFS-Realtime; give the feed's link below."
+      "help": "Melbourne two ways. The PTV Timetable API (a developer id and key from PTV) gives every Metro train's live position, cars and destination, and each tram by fleet number at the stop it is due at next, with the minutes to go; it has no live V/Line. Transport Victoria's open data (a different, free key) gives every train and tram's live position but no destinations. The others need no key. Another agency: most publish their vehicle positions as GTFS-Realtime; give the feed's link below."
     },
     {
       "name": "feed_urls",
@@ -837,6 +841,10 @@
         {
           "value": "line",
           "label": "Line or route"
+        },
+        {
+          "value": "dest",
+          "label": "Where she is going"
         },
         {
           "value": "number",

@@ -81,7 +81,7 @@ function statRows(a) {
   return [
     ['Line', a.reg || '', a.status || ''],
     ['Speed', a.kmh ? `${a.kmh} km/h` : a.status === 'at a stop' ? 'stopped' : '', a.kmh ? a.status : ''],
-    ['Distance', `${a.km} km`, `to the ${DIRS[a.compass] || a.compass || ''}`],
+    ['Distance', a.km < 0.1 ? 'under 100 m' : `${a.km} km`, `to the ${DIRS[a.compass] || a.compass || ''}`],
     ['Heading', a.trk >= 0 ? `${String(a.trk).padStart(3, '0')}°` : '', a.status || ''],
   ].filter((r) => r[1]);
 }

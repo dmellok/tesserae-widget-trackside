@@ -111,7 +111,10 @@ PRESETS: dict[str, dict[str, Any]] = {
         "credit": "Translink",
     },
 }
-SOURCES = (*PRESETS, "custom")
+SOURCES = ("ptv", *PRESETS, "custom")
+PTV = "https://timetableapi.ptv.vic.gov.au"
+PTV_STOPS_S = 86400  # the stops near a place hardly move
+PTV_DUE_S = 20 * 60  # a tram due later than this is not yet on its way to the page
 
 
 def feeds_for(
@@ -709,6 +712,246 @@ def _feed(
     return rows, None
 
 
+# ----------------------------------------------------------------------
+# Melbourne through the PTV Timetable API (a developer id and key, each
+# request signed): trains with their live position, their cars and where
+# they are going; trams by fleet number at the stop they are due at.
+# ----------------------------------------------------------------------
+TRAIN_WORDS = (
+    ("siemens", "nexas"),
+    ("comeng", "comeng"),
+    ("trapolis", "xtrap"),
+    ("hcmt", "hcmt"),
+    ("high capacity", "hcmt"),
+    ("evolution", "hcmt"),
+)
+
+
+def ptv_url(path: str, devid: str, key: str) -> str:
+    """A signed Timetable API link: HMAC-SHA1 of the path and query, devid included, in capitals."""
+    import hmac
+
+    p = path + ("&" if "?" in path else "?") + f"devid={devid}"
+    sig = hmac.new(key.encode(), p.encode(), hashlib.sha1).hexdigest().upper()
+    return f"{PTV}{p}&signature={sig}"
+
+
+def _ptv(path: str, devid: str, key: str, ua: str) -> tuple[Any, str | None]:
+    return N.get_json(ptv_url(path, devid, key), ua=ua, timeout=FEED_TIMEOUT_S)
+
+
+def ptv_train(desc: dict[str, Any]) -> dict[str, Any]:
+    """A Metro train from the run's vehicle descriptor: its cars ("1178T-1179T-655M-..."),
+    and its class from the operator's own description ("6 Car Siemens") before the car numbers."""
+    cars = str(desc.get("id") or "")
+    words = str(desc.get("description") or "")
+    info = melbourne_vehicle("train", cars, "")
+    klass = next((k for w, k in TRAIN_WORDS if w in words.lower()), "")
+    if klass and klass != info.get("klass"):
+        name, cat, about = next(
+            ((n, c, a) for _lo, _hi, _s, k, n, c, a in TRAINS if k == klass),
+            (HCMT[1], HCMT[2], HCMT[3]),
+        )
+        info.update(
+            klass=klass, typ=name, cat=cat, about=about, len=TRAIN_LEN.get(klass, 70.0)
+        )
+    m = re.match(r"\s*(\d+)\s*car", words, re.I)
+    if m:
+        info["typ"] = f"{info['typ']}, {m.group(1)} cars"
+    motors = [c for c in re.split(r"[-+ ]+", cars) if c.upper().endswith("M")]
+    info["car"] = motors[0].upper() if motors else info.get("car", "")
+    info["num"] = cars or info["num"]
+    return info
+
+
+def nearby_ptv(
+    key: str, lat: float, lon: float, radius_km: float, data_dir: Path, ua: str
+) -> tuple[list[dict[str, Any]], str | None, str]:
+    """(rows, error, feed name) from the PTV Timetable API. ``key`` is "devid:key"."""
+    devid, _, secret = (key or "").partition(":")
+    if not devid.strip() or not secret.strip():
+        return (
+            [],
+            "Give your PTV Timetable API developer id and key in the Trackside Core settings.",
+            "",
+        )
+    devid, secret = devid.strip(), secret.strip()
+    cache = data_dir / "live" / f"ptv_{lat:.4f}_{lon:.4f}_{radius_km:g}.json"
+    got = N.read_json(cache, None)
+    if isinstance(got, dict) and time.time() - float(got.get("at") or 0) < LIVE_S:
+        return got.get("rows") or [], got.get("err"), "PTV"
+    # the stops: kept a day
+    spath = data_dir / "live" / f"ptv_stops_{lat:.4f}_{lon:.4f}_{radius_km:g}.json"
+    stops = N.read_json(spath, None)
+    if not (
+        isinstance(stops, dict)
+        and time.time() - float(stops.get("at") or 0) < PTV_STOPS_S
+    ):
+        dist = int(min(max(radius_km, 0.5), 5) * 1000)
+        data, err = _ptv(
+            f"/v3/stops/location/{lat:.5f},{lon:.5f}?route_types=0&route_types=1&max_results=12&max_distance={dist}",
+            devid,
+            secret,
+            ua,
+        )
+        if data is None:
+            why = (
+                "refused the developer id and key"
+                if err == "auth"
+                else (err or "gave no answer")
+            )
+            return [], f"The PTV Timetable API {why}.", ""
+        stops = {
+            "at": time.time(),
+            "stops": [s for s in data.get("stops") or [] if isinstance(s, dict)],
+        }
+        N.write(spath, json.dumps(stops).encode())
+    rows: dict[str, dict[str, Any]] = {}
+    errors: list[str] = []
+    trains = [s for s in stops["stops"] if s.get("route_type") == 0][:2]
+    trams = [s for s in stops["stops"] if s.get("route_type") == 1][:4]
+    now = time.time()
+    asks = [
+        (
+            s,
+            0,
+            f"/v3/departures/route_type/0/stop/{s['stop_id']}?max_results=6&expand=VehiclePosition&expand=VehicleDescriptor&expand=Run&expand=Route",
+        )
+        for s in trains
+    ]
+    asks += [
+        (
+            s,
+            1,
+            f"/v3/departures/route_type/1/stop/{s['stop_id']}?max_results=2&expand=VehicleDescriptor&expand=Run&expand=Route",
+        )
+        for s in trams
+    ]
+    pool = ThreadPoolExecutor(
+        max_workers=max(1, len(asks)), thread_name_prefix="trackside-ptv"
+    )
+    futures = {
+        pool.submit(_ptv, path, devid, secret, ua): (s, rt) for s, rt, path in asks
+    }
+    done, _pending = wait(futures, timeout=FEED_TIMEOUT_S + 1.5)
+    pool.shutdown(wait=False)
+    for f, (stop, rt) in futures.items():
+        if f not in done:
+            errors.append("too slow")
+            continue
+        data, err = f.result()
+        if data is None:
+            errors.append(
+                "refused the developer id and key"
+                if err == "auth"
+                else err or "no answer"
+            )
+            continue
+        runs, routes = data.get("runs") or {}, data.get("routes") or {}
+        for dep in data.get("departures") or []:
+            due = ""
+            run = runs.get(str(dep.get("run_ref"))) or {}
+            route = routes.get(str(dep.get("route_id"))) or {}
+            desc = run.get("vehicle_descriptor") or {}
+            dest = " ".join(str(run.get("destination_name") or "").split())
+            if rt == 0:
+                pos = run.get("vehicle_position") or {}
+                if not isinstance(pos.get("latitude"), (int, float)) or not desc.get(
+                    "id"
+                ):
+                    continue
+                info = ptv_train(desc)
+                vlat, vlon = float(pos["latitude"]), float(pos["longitude"])
+                line = (
+                    f"{route.get('route_name') or ''} line".strip()
+                    if route.get("route_name")
+                    else ""
+                )
+                status = ""  # the API says where a train is, not whether she is at a platform
+                trk = (
+                    int(round(float(pos["bearing"]))) % 360
+                    if isinstance(pos.get("bearing"), (int, float))
+                    else -1
+                )
+                due = ""
+            else:
+                if not desc.get("id"):
+                    continue
+                when = dep.get("estimated_departure_utc") or dep.get(
+                    "scheduled_departure_utc"
+                )
+                with contextlib.suppress(ValueError, TypeError):
+                    from datetime import datetime
+
+                    mins = (
+                        datetime.fromisoformat(
+                            str(when).replace("Z", "+00:00")
+                        ).timestamp()
+                        - now
+                    ) / 60
+                    if mins * 60 > PTV_DUE_S or mins < -1:
+                        continue
+                    stop_name = re.sub(
+                        r"\s*#\d+\s*$",
+                        "",
+                        " ".join(str(stop.get("stop_name") or "").split()),
+                    )
+                    due = (
+                        f"at {stop_name}"
+                        if mins < 1
+                        else f"due at {stop_name} in {int(round(mins))} min"
+                    )
+                if not due:
+                    continue
+                info = melbourne_vehicle("tram", str(desc["id"]), "")
+                vlat, vlon = (
+                    float(stop.get("stop_latitude") or lat),
+                    float(stop.get("stop_longitude") or lon),
+                )
+                line = (
+                    f"Route {route['route_number']}"
+                    if route.get("route_number")
+                    else ""
+                )
+                status = due
+                trk = -1
+            km, deg = _bearing(lat, lon, vlat, vlon)
+            if km > radius_km:
+                continue
+            vid = str(desc.get("id"))
+            row = {
+                **info,
+                "vid": vid,
+                "label": vid,
+                "mode": "train" if rt == 0 else "tram",
+                "route_id": str(route.get("route_gtfs_id") or ""),
+                "line": line,
+                "dest": re.sub(r"\s*#\d+\s*$", "", dest)
+                .replace(" Railway Station", "")
+                .strip(),
+                "trip": str(dep.get("run_ref") or ""),
+                "lat": vlat,
+                "lon": vlon,
+                "km": round(km, 1),
+                "dir": int(round(deg)) % 360,
+                "trk": trk,
+                "kmh": None,
+                "status": status,
+                "stop": str(stop.get("stop_id") or ""),
+                "age_s": 0,
+                "city": "Melbourne",
+            }
+            old = rows.get(vid)
+            if old is None or (rt == 1 and row["km"] < old["km"]):
+                rows[vid] = row
+    out = sorted(rows.values(), key=lambda r: r["km"])
+    err = "the PTV Timetable API: " + "; ".join(sorted(set(errors))) if errors else None
+    if err and not out and len(errors) == len(asks):
+        return [], err[0].upper() + err[1:] + ".", ""
+    N.write(cache, json.dumps({"at": time.time(), "rows": out, "err": err}).encode())
+    return out, err, "PTV"
+
+
 def nearby(
     source: str,
     options: dict[str, Any],
@@ -721,6 +964,8 @@ def nearby(
 ) -> tuple[list[dict[str, Any]], str | None, str]:
     """(rows, error, feed name): the trains and trams within ``radius_km`` of a
     point, nearest first."""
+    if source == "ptv":
+        return nearby_ptv(key, lat, lon, radius_km, data_dir, ua)
     feeds, header, operator = feeds_for(source, options)
     if not feeds:
         return (

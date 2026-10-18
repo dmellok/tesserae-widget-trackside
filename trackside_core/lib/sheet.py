@@ -48,6 +48,7 @@ PAPERS = ("cream", "white", "aged", "blueprint", "sky")
 LABELS = (
     "type",
     "line",
+    "dest",
     "number",
     "operator",
     "status",
@@ -222,6 +223,8 @@ def lines_for(r: dict[str, Any], labels: list[str]) -> list[str]:
             out.append(r["typ"])
         elif lab == "line" and r.get("line"):
             out.append(r["line"])
+        elif lab == "dest" and r.get("dest"):
+            out.append(f"to {r['dest']}")
         elif lab == "number" and r.get("num"):
             out.append(f"No. {r['num']}")
         elif lab == "operator" and r.get("op"):
@@ -242,11 +245,17 @@ def lines_for(r: dict[str, Any], labels: list[str]) -> list[str]:
 def about_of(r: dict[str, Any]) -> str:
     who = r.get("about") or ("a tram" if r["cls"] == "tram" else "a train")
     run = f" on {r['line']}" if r.get("line") else ""
+    run += f", bound for {r['dest']}" if r.get("dest") else ""
     doing = {
         "at a stop": "standing at a stop",
         "approaching a stop": "drawing in to a stop",
         "between stops": "running between stops",
-    }.get(r.get("status") or "", "running")
+    }.get(
+        r.get("status") or "",
+        r["status"]
+        if str(r.get("status") or "").startswith(("due at", "at "))
+        else "running",
+    )
     speed = f" at {r['kmh']:g} km/h" if r.get("kmh") else ""
     op = f", run by {r['op']}" if r.get("op") else ""
     where = (
@@ -341,7 +350,9 @@ def fetch(
 
     source = _choice(options.get("source"), R.SOURCES, "melbourne")
     key = (
-        str(settings.get("vic_key") or "").strip()
+        f"{str(settings.get('ptv_devid') or '').strip()}:{str(settings.get('ptv_key') or '').strip()}"
+        if source == "ptv"
+        else str(settings.get("vic_key") or "").strip()
         if source == "melbourne"
         else str(options.get("feed_key") or "").strip()
     )
@@ -533,6 +544,9 @@ def fetch(
             deferred += 1
 
     for r in shown:
+        # "Frankston line, to Frankston" says it twice: the destination only when the line does not name it
+        if r.get("dest") and r.get("line") and r["dest"].lower() in r["line"].lower():
+            r["dest"] = ""
         # a train's set number (301M-1001T-302M) is long for the page's big figure: the leading car there, the set in the lines
         r["cs"] = r.get("car") or r["num"].split("-")[0]
         r["reg"] = r.get("line") or ""
@@ -541,7 +555,9 @@ def fetch(
         )  # a card has no room for it beside the number
         r["logo"] = ""
         r["route"] = {}
-        r["route_text"] = r.get("line") or r["typ"]
+        r["route_text"] = " to ".join(
+            x for x in (r.get("line") or r["typ"], r.get("dest") or "") if x
+        )
         r["span"] = r.get("len") or 30
         r["compass"] = compass(r["dir"])
         r["where"] = where_of(r)
