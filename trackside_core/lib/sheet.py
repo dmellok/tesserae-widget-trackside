@@ -9,6 +9,7 @@ import hashlib
 import importlib.util
 import json
 import logging
+import random
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, wait
@@ -64,6 +65,9 @@ LABELS = (
     "seen",
 )
 UNPAINTED = ("silhouette", "photo", "skip")
+# the line-up, when the day's budget is spent: the vehicles that could not be painted give way to
+# paintings already kept, chosen at random or the rarest seen first
+SPENT = ("keep", "random", "rare")
 PAINTS = ("all", "own")
 PERIODS = ("now", "since")
 WATCH_S = 60  # the feeds are asked this often while a page watches (Transport Victoria allows 24 a minute)
@@ -109,6 +113,7 @@ LOOK_OPTIONS = frozenset(
         "photo_fit",
         "colours",
         "look",
+        "when_spent",
     )
 )
 # the operators' colours for the modern looks: main, second, a tint, a shade, a third
@@ -270,6 +275,168 @@ def about_of(r: dict[str, Any]) -> str:
         else f"{r['km']:g} km to the {compass(r['dir'])}"
     )
     return f"No. {r['num']} is {who}{op}. She is {doing}{run}{speed}, {where}."
+
+
+def _when(t: float, now: datetime) -> str:
+    d = (
+        datetime.fromtimestamp(t, now.tzinfo)
+        if now.tzinfo
+        else datetime.fromtimestamp(t)
+    )
+    return d.strftime("%-d %b" if sys.platform != "win32" else "%d %b")
+
+
+_OP_MODE = {"Yarra Trams": "tram", "V/Line": "regional"}
+
+
+def kept_vehicle(meta: dict[str, Any]) -> dict[str, Any]:
+    """{cls, len, car} for a kept painting: from its record, or, for one kept
+    before the record carried them, from her number the way the feed does."""
+    op, num = str(meta.get("op") or ""), str(meta.get("num") or "")
+    if meta.get("cls"):
+        return {
+            "cls": str(meta["cls"]),
+            "len": float(meta.get("len") or 0)
+            or (25.0 if meta["cls"] == "tram" else 70.0),
+            "car": str(meta.get("car") or ""),
+        }
+    if op in ("Yarra Trams", "V/Line", "Metro Trains Melbourne"):
+        v = R.melbourne_vehicle(_OP_MODE.get(op, "train"), num, "")
+        return {"cls": v["cls"], "len": float(v["len"]), "car": v.get("car") or ""}
+    typ = str(meta.get("typ") or "").lower()
+    tram = any(w in typ for w in ("tram", "light rail", "streetcar", "trolley"))
+    return {
+        "cls": "tram" if tram else "train",
+        "len": 25.0 if tram else 70.0,
+        "car": "",
+    }
+
+
+def from_collection(
+    art: Any,
+    data_dir: Path,
+    *,
+    style: str,
+    exclude: set[str],
+    taken: set[str],
+    n: int,
+    mode: str,
+    seed: str,
+    labels: list[str],
+    px: int,
+    panel: str,
+    whole_: bool,
+    deadline: float,
+    now: datetime,
+) -> list[dict[str, Any]]:
+    """Up to ``n`` kept paintings in this style, for the gaps a spent budget
+    leaves on the line-up: in an order of their own that holds for the hour
+    (random), or those seen fewest times first (rare). Only paintings of a
+    vehicle from her own photograph (a class impression is no one vehicle),
+    on no backdrop, one per vehicle, none already on the page. Cutting out a
+    painting never cut before stops at the deadline; those already cut keep
+    coming."""
+    c = art.c
+    if c is None or n <= 0:
+        return []
+    led = SG.ledger(data_dir)
+    with led.lock:
+        # the ledger's id is "op num", the painting key's first part its slug
+        seen = {N.slug(k): dict(v) for k, v in led.seen.items()}
+    folder = c.folder(data_dir)
+    found: dict[str, tuple[str, dict[str, Any]]] = {}
+    with contextlib.suppress(OSError):
+        for f in folder.iterdir():
+            if f.suffix not in (".jpg", ".png") or "__" in f.stem or not f.is_file():
+                continue
+            meta = c.meta(f.stem, data_dir)
+            if (
+                not meta.get("exact")
+                or meta.get("style") != style
+                or (meta.get("backdrop") or "none") != "none"
+                or not meta.get("num")
+            ):
+                continue
+            s = f.stem.split("--", 1)[0]
+            if s in exclude or s in found:
+                continue
+            found[s] = (f.stem, meta)
+    rng = random.Random(f"{seed}|{now.strftime('%Y-%m-%d %H')}")
+    order = sorted(found)
+    rng.shuffle(order)
+    if mode == "rare":
+        order.sort(key=lambda s: int((seen.get(s) or {}).get("v") or 1))
+    taken = set(taken)
+    out: list[dict[str, Any]] = []
+    for s in order:
+        if len(out) >= n:
+            break
+        key, meta = found[s]
+        num, typ, op = (
+            str(meta["num"]),
+            str(meta.get("typ") or "Train"),
+            str(meta.get("op") or ""),
+        )
+        v = kept_vehicle(meta)
+        # the page's labels are keyed by the big figure: one of each
+        cs = v["car"] or num.split("-")[0]
+        if cs in taken:
+            continue
+        if (
+            not whole_
+            and time.time() > deadline
+            and not (folder / f"{key}__cut{P.CUT_VERSION}.png").exists()
+        ):
+            continue
+        pic = P.picture(art, key, px, panel, whole_)
+        if not pic:
+            continue
+        taken.add(cs)
+        e = seen.get(s) or {}
+        passes = int(e.get("v") or 0)
+        when = (
+            f"seen once, {_when(float(e['l']), now)}"
+            if passes == 1 and e.get("l")
+            else f"seen {passes} times, last {_when(float(e['l']), now)}"
+            if passes and e.get("l")
+            else "from the collection"
+        )
+        lines = [
+            x
+            for lab, x in (
+                ("type", typ),
+                ("number", f"No. {num}"),
+                ("operator", op),
+            )
+            if lab in labels and x
+        ] + [when]
+        out.append(
+            {
+                "num": num,
+                "cs": cs,
+                "car": v["car"],
+                "typ": typ,
+                "op": op,
+                "cls": v["cls"],
+                "len": v["len"],
+                "span": v["len"],
+                "reg": "",
+                "air": "",
+                "logo": "",
+                "brand": {},
+                "route": {},
+                "route_text": typ,
+                "where": "",
+                "about": "",
+                "status": "",
+                "lines": lines,
+                "pic": pic,
+                "sil": f"/plugins/trackside_core/static/sil/{v['cls'] if v['cls'] in ('tram', 'train') else 'train'}.svg",
+                "kept": True,
+                "rare": passes == 1,
+            }
+        )
+    return out
 
 
 def subject_id(options: dict[str, Any]) -> str:
@@ -625,6 +792,8 @@ def fetch(
                     "typ": r["typ"],
                     "op": r.get("op") or "",
                     "cls": r["cls"],
+                    "len": r.get("len") or 0,
+                    "car": r.get("car") or "",
                     "exact": exact,
                     "style": style,
                     "how": how,
@@ -691,6 +860,44 @@ def fetch(
         r["pic"] = pic
         for k in ("lat", "lon", "photo", "cat", "side"):
             r.pop(k, None)
+    spent_mode = (
+        _choice(options.get("when_spent"), SPENT, "keep")
+        if widget == "lineup" and pictures == "paintings"
+        else "keep"
+    )
+    kept_n = 0
+    if spent_mode != "keep" and art.states.get("capped"):
+        painted_now = [
+            r for r in shown if r.get("pic") and r["pic"].get("kind") == "painting"
+        ]
+        gaps = [r for r in shown if r not in painted_now]
+        kept = from_collection(
+            art,
+            data_dir,
+            style=style,
+            exclude={N.slug(SIGHT_ID(r)) for r in shown},
+            taken={r["cs"] for r in painted_now}
+            | {r["cs"] for r in gaps[: max(0, count - len(painted_now))]},
+            n=min(len(gaps), max(0, count - len(painted_now))),
+            mode=spent_mode,
+            seed=subject_id(options),
+            labels=labels,
+            px=px,
+            panel=panel,
+            whole_=whole_,
+            deadline=fetch_started + BUDGET_S + 1.0,
+            now=now,
+        )
+        kept_n = len(kept)
+        credits.extend(r["pic"]["credit"] for r in kept if r["pic"].get("credit"))
+        shown = painted_now + kept + gaps[kept_n:]
+        if kept_n:
+            # "on the rails now", or the watch's "since 07:40"
+            base["period"] = (
+                f"{base['period']}, and {kept_n} from the collection"
+                if painted_now
+                else "from the collection"
+            )
     if only_painted:
         shown = [
             r for r in shown if r.get("pic") and r["pic"].get("kind") == "painting"
@@ -713,6 +920,10 @@ def fetch(
             notices.append(f"the watch between renders: {wv['error']}")
     if pictures == "paintings":
         status.extend(art.status())
+        if kept_n:
+            status.append(
+                f"{kept_n} {'rare ones' if spent_mode == 'rare' else 'more'} from the collection while the budget is spent"
+            )
         notices.extend(art.notes())
         if no_photo:
             status.append(f"{no_photo} without a photograph to paint from")

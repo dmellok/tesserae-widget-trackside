@@ -6,3 +6,7 @@
 - **Fonts**: IM Fell English and IM Fell English SC by Igino Marini (SIL Open Font License), Archivo Narrow by Omnibus-Type (SIL Open Font License). Licences in trackside_core/lib/fonts/.
 - **Silhouettes** (trackside_core/static/sil/): drawn for this widget; MIT with the rest.
 - **AI paintings**: made on your own fal.ai account from the photographs above; the painting's credit names the model and the photographer.
+
+## Style samples
+
+The style samples in trackside_core/static/styles/ are paintings derived from "Yarra Trams E-class 6089 Route 30, January 2022 1.jpg" by Marcnut1996, CC BY-SA 4.0, https://commons.wikimedia.org/wiki/File:Yarra_Trams_E-class_6089_Route_30,_January_2022_1.jpg. As adaptations of a CC BY-SA photograph, the samples carry the same licence (CC BY-SA 4.0). They are made by trackside_core/tools/style_previews.py.

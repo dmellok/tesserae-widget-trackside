@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 TESSERAE_MIN = "0.463.0"
 
 
@@ -39,7 +39,13 @@ def _load(name):
 
 _paint = _load("paint")
 _rt = _load("rt")
-STYLES = [(k, v[0]) for k, v in _paint.STYLES.items()] + [
+# each painted style shows its sample (tools/style_previews.py) in the picker
+STYLES = [
+    (k, v[0], f"/plugins/trackside_core/static/styles/{k}.jpg")
+    if (ROOT / "trackside_core" / "static" / "styles" / f"{k}.jpg").exists()
+    else (k, v[0])
+    for k, v in _paint.STYLES.items()
+] + [
     ("builder", "Build my own"),
     ("custom", "Your own prompt"),
 ]
@@ -61,7 +67,10 @@ def sel(name, label, default, choices, **kw):
         "type": "select",
         "label": label,
         "default": default,
-        "choices": [{"value": v, "label": l} for v, l in choices],
+        "choices": [
+            {"value": c[0], "label": c[1], **({"image": c[2]} if len(c) > 2 else {}), **({"image_large": c[2].replace("/styles/", "/styles/large/")} if len(c) > 2 else {})}
+            for c in choices
+        ],
         **kw,
     }
 
@@ -288,6 +297,20 @@ def picture_options(with_backdrop, many, scene=False):
                     ("skip", "Only painted vehicles: leave the rest off the page"),
                 ],
                 show_if=show,
+            )
+        )
+        out.append(
+            sel(
+                "when_spent",
+                "When the day's budget is spent",
+                "keep",
+                [
+                    ("keep", "Keep showing what is on the rails"),
+                    ("random", "Fill the gaps with paintings already kept, at random"),
+                    ("rare", "Fill the gaps with the rarest ones seen"),
+                ],
+                show_if=show,
+                help="Once to-day's painting budget is spent, the trains and trams that could not be painted give way to paintings of other vehicles this widget already kept in the same style: a different handful each hour, or the ones seen fewest times first. Their labels say when each was last seen. Only paintings from a vehicle's own photograph are used, not those of her class, and nothing is spent on them.",
             )
         )
     else:

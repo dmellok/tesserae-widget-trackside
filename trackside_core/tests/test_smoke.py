@@ -420,7 +420,7 @@ def test_manifests_and_client_files():
     ):
         m = json.loads((ROOT / wid / "plugin.json").read_text(encoding="utf-8"))
         assert (
-            m["version"] == "0.3.0"
+            m["version"] == "0.4.0"
             and m["tesserae_compat"] == "1.x"
             and m["tesserae_min"] == "0.463.0"
         )
@@ -986,3 +986,95 @@ def test_the_catalogue_counts_passes(tmp_path, offline):
     lineup.fetch({**FLINDERS, "pictures": "photos"}, SETTINGS, ctx=_ctx(tmp_path))
     st = core.sightings_context(tmp_path)["s"]
     assert st["airframes"] >= 1 and st["passes"] >= 1 and st["painted"] == 0
+
+
+def test_a_spent_budget_fills_the_lineup_from_the_collection(tmp_path, offline):
+    prompts, _ = offline
+    passes = {"5001": 5, "5002": 1, "5003": 2}
+    for num in passes:
+        P.ART.keep(
+            P.key_for(f"Yarra Trams {num}", "poster"),
+            tmp_path,
+            _jpeg(paper=(252, 250, 246)),
+            {
+                "num": num,
+                "typ": "D2-class tram",
+                "op": "Yarra Trams",
+                "exact": True,
+                "style": "poster",
+                "backdrop": "none",
+                "credit": f"painted from {num}",
+            },
+        )
+    for who, meta in (  # none of these is the page's
+        (
+            "Yarra Trams 5004",
+            {"num": "5004", "op": "Yarra Trams", "exact": True, "style": "engraving"},
+        ),
+        (
+            "E class",
+            {"num": "6001", "op": "Yarra Trams", "exact": False, "style": "poster"},
+        ),
+        (
+            "Yarra Trams 6036",
+            {"num": "6036", "op": "Yarra Trams", "exact": True, "style": "poster"},
+        ),
+    ):
+        P.ART.keep(
+            P.key_for(who, meta["style"]),
+            tmp_path,
+            _jpeg(paper=(252, 250, 246)),
+            {"typ": "tram", "backdrop": "none", **meta},
+        )
+    led = S.SG.ledger(tmp_path)
+    for num, n in passes.items():
+        for i in range(n):
+            led.note(
+                [{"op": "Yarra Trams", "num": num, "typ": "D2-class tram"}],
+                S.SIGHT_ID,
+                S.SIGHT_NAME,
+                now=1000 + i * 4000,
+            )
+    P.ART.spend(tmp_path, 100)
+    options = {
+        **FLINDERS,
+        "pictures": "paintings",
+        "style": "poster",
+        "modes": ["tram", "train"],
+        "count": "4",
+        "when_spent": "rare",
+    }
+    r = lineup.fetch(options, SETTINGS, ctx=_ctx(tmp_path))
+    assert not prompts, "nothing is painted once the budget is spent"
+    shown = [v["num"] for v in r["vehicles"]]
+    assert shown[:3] == ["5002", "5003", "5001"], "the rarest first"
+    kept = r["vehicles"][:3]
+    assert all(
+        v["pic"]["kind"] == "painting"
+        and not v["pic"]["whole"]
+        and v["kept"]
+        and v["cls"] == "tram"
+        and v["span"] > 0
+        for v in kept
+    ), "every one cut out, with what the page reads"
+    assert len({v["cs"] for v in r["vehicles"]}) == 4, "one label each"
+    assert kept[0]["lines"] == ["D2-class tram", kept[0]["lines"][-1]]
+    assert kept[0]["lines"][-1].startswith("seen once") and kept[2]["lines"][
+        -1
+    ].startswith("seen 5 times")
+    assert len(r["vehicles"]) == 4 and not r["vehicles"][3].get("kept"), (
+        "a gap the collection could not fill stays"
+    )
+    assert r["period"] == "from the collection" and "painted from 5002" in r["credits"]
+    assert any("from the collection" in s for s in r["status"])
+    # at random: the same three for the hour, in an order of their own
+    a = lineup.fetch({**options, "when_spent": "random"}, SETTINGS, ctx=_ctx(tmp_path))
+    b = lineup.fetch({**options, "when_spent": "random"}, SETTINGS, ctx=_ctx(tmp_path))
+    assert [x["num"] for x in a["vehicles"]] == [x["num"] for x in b["vehicles"]]
+    assert sorted(x["num"] for x in a["vehicles"][:3]) == sorted(passes)
+    # left alone, the page is as it was: what is on the rails, unpainted
+    r = lineup.fetch({**options, "when_spent": "keep"}, SETTINGS, ctx=_ctx(tmp_path))
+    assert (
+        not any(v.get("kept") for v in r["vehicles"])
+        and r["period"] == "on the rails now"
+    )
