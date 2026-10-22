@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 TESSERAE_MIN = "0.463.0"
 
 
@@ -45,6 +45,7 @@ STYLES = [
     if (ROOT / "trackside_core" / "static" / "styles" / f"{k}.jpg").exists()
     else (k, v[0])
     for k, v in _paint.STYLES.items()
+    if k not in _paint.HIDDEN
 ] + [
     ("builder", "Build my own"),
     ("custom", "Your own prompt"),
@@ -282,7 +283,7 @@ def picture_options(with_backdrop, many, scene=False):
             "nano_banana",
             MODELS,
             show_if=show,
-            help="All on fal.ai, all painting from the photograph.",
+            help="All on fal.ai, all painting from the photograph. On Nano Banana, pixel art, stained glass, low-poly, paper craft, toy bricks and the grey styles (engraving, pencil, charcoal) are painted with GPT Image 2 (about US$0.05), as Nano Banana keeps them close to the photograph.",
         )
     )
     if many:

@@ -584,6 +584,9 @@ def fetch(
     elif style not in P.STYLES:
         style = "poster"
     model = P.model_of(str(options.get("model") or P.DEFAULT_MODEL))
+    # a style Nano Banana cannot make is painted with GPT Image 2, keyed by the cell's own model
+    # so a painting kept from before still shows
+    paint_model = P.model_for(style, model)
     backdrop = _choice(options.get("backdrop"), tuple(P.BACKDROPS))
     if widget == "lineup":
         backdrop = "none"
@@ -801,7 +804,7 @@ def fetch(
                     "weather_words": weather_text,
                     "view": view,
                     "fidelity": fidelity,
-                    "model": model,
+                    "model": paint_model,
                     "photo": photo["src"],
                     "by": photo.get("by") or "",
                     "lic": photo.get("lic") or "",

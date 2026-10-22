@@ -420,7 +420,7 @@ def test_manifests_and_client_files():
     ):
         m = json.loads((ROOT / wid / "plugin.json").read_text(encoding="utf-8"))
         assert (
-            m["version"] == "0.4.0"
+            m["version"] == "0.5.0"
             and m["tesserae_compat"] == "1.x"
             and m["tesserae_min"] == "0.463.0"
         )
@@ -812,7 +812,7 @@ def test_side_views_for_the_painter(tmp_path, offline):
     _settle()
     assert (
         len(prompts) == 1
-        and "faithful translation" in prompts[0]["prompt"]
+        and "a faithful picture of this very tram" in prompts[0]["prompt"]
         and "take her length, her sections" in prompts[0]["prompt"]
     )
     # a side view of your own comes first; FLUX Kontext takes one picture only
@@ -1078,3 +1078,18 @@ def test_a_spent_budget_fills_the_lineup_from_the_collection(tmp_path, offline):
         not any(v.get("kept") for v in r["vehicles"])
         and r["period"] == "on the rails now"
     )
+
+
+def test_a_style_nano_banana_cannot_make_paints_with_gpt_image(tmp_path, offline):
+    prompts, _ = offline
+    opts = {**FLINDERS, "pictures": "paintings", "style": "pixel", "modes": ["tram"]}
+    plate.fetch(opts, SETTINGS, ctx=_ctx(tmp_path))
+    _settle()
+    assert prompts and all("gpt-image" in p["_url"] for p in prompts), [
+        p["_url"] for p in prompts
+    ]
+    # keyed by the cell's own model, so a pixel painting kept from before still shows
+    kept = [f.name for f in tmp_path.rglob("*.jpg")]
+    assert any("--pixel--p1" in n for n in kept) and not any(
+        "m_gpt_image" in n for n in kept
+    ), kept

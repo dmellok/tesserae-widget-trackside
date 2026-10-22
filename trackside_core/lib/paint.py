@@ -315,6 +315,9 @@ STYLES: dict[str, tuple[str, str]] = {
         "a chalk drawing on a dark blackboard: white and coloured chalk, soft smudges, the lines a little dusty",
     ),
 }
+# Kept working for cells already set to them, left out of the Style picker: at panel size they
+# read as another style, or stay too close to the photograph
+HIDDEN = frozenset({"woodblock", "midcentury", "engraving_colour", "pointillism", "pencil", "papercraft"})
 STYLE_IDS = (*STYLES, "builder", "custom")
 # Styles without colour: the prompt asks for black, white and grey only
 MONO = {"engraving", "technical", "pencil", "charcoal"}
@@ -505,14 +508,39 @@ GEN = (
     "lettering beyond the livery's own and the number, no border, no signature.{outline}"
 )
 GEN_FAITHFUL = (
-    "Render the {typ} in the reference photo{num} in {op} livery, as {style}: a faithful translation of this very "
-    "photograph into that medium. The photograph is the authority: the same {kind} at the same angle as "
+    "Render the {typ} in the reference photo{num} in {op} livery, as {style}: a faithful picture of this very "
+    "{kind} in that medium. The photograph is the authority on the {kind}: the same {kind} at the same angle as "
     "photographed; every element of the livery as it actually appears in the photograph, its colours, markings, "
     "any advertising wrap and the number, and the particular details of the vehicle, the cab, the doors, the "
-    "windows, the pantograph and the bogies, reproduced exactly as they are in the photograph; only the medium "
-    "changes{scene}. Everything else in the photograph, the street, the platform, other vehicles, people, poles and "
-    "wires, is left out unless the backdrop asks for it. {page} No text or lettering beyond the livery's own, no "
-    "border, no signature.{outline}"
+    "windows, the pantograph and the bogies, reproduced exactly as they are in the photograph{scene}. Everything "
+    "else in the photograph, the street, the platform, other vehicles, people, poles and wires, is left out unless "
+    "the backdrop asks for it. {medium} {page} No text or lettering beyond the livery's own, no border, no "
+    "signature.{outline} Last, and above everything the photograph shows: at first glance the picture is plainly "
+    "{label}, never the photograph with the style laid over it."
+)
+# The photograph decides what the vehicle is; the medium decides how every part of the picture is made
+MEDIUM_ONLY = (
+    "Every part of the picture is made in that medium, the {kind} included: nothing photographic is left, no "
+    "photographic shading, reflections, sky, background or texture from the photograph, which is used only for "
+    "what the {kind} is. Where the medium cannot hold a detail, the medium wins: the livery and the details are "
+    "simplified into it, as coarse as the medium is coarse, and the medium is never made finer to keep them."
+)
+MONO_MEDIUM = (
+    "which is used only for what the {kind} is.",
+    "which is used only for what the {kind} is. Rendered without any colour: black, white and grey only.",
+)
+MONO_LAST = (
+    "never the photograph with the style laid over it.",
+    "never the photograph with the style laid over it, and in black, white and grey only: not a touch of colour "
+    "anywhere, the livery's colours drawn as tones of grey.",
+)
+# A style on its own ground (a blueprint, a stamp, a blackboard): the photograph's setting goes, and the
+# medium's own ground fills the page round the vehicle, a short stretch of rail under it drawn in the medium
+PAGE_OWN = (
+    "Only the {kind} comes from the photograph: its setting, the street, road, buildings, trees, poles, overhead "
+    "wires, cars, people and sky, is left out entirely, not redrawn in the medium either, and the medium's own "
+    "ground fills the whole picture round the {kind}, edge to edge, with only a short stretch of rail under its "
+    "wheels, drawn in the medium."
 )
 GEN_SIDE = (
     "Draw the {typ} in the first reference photo{num} in {op} livery, as {style}, seen exactly from the side at "
@@ -532,6 +560,8 @@ SIDE_REF = (
 )
 FIDELITIES = ("photo", "free", "side")
 PAGE_ALONE = (
+    "The whole {kind} fits well inside the picture, about three quarters of its width, centred, with both ends "
+    "and the pantograph clear of the edges. "
     "The {kind} alone on plain, pure white paper with a clear margin all round and nothing else on the page: "
     "no street, track, platform, wires, poles, ground, shadow or ornament round or behind it beyond a short "
     "length of rail under its wheels. The style says how the {kind} is drawn and nothing else."
@@ -639,7 +669,13 @@ def prompt_for(job: dict[str, Any]) -> str:
         "op": job.get("op") or "its own",
         "style": how,
         "kind": kind,
-        "page": (PAGE_ALONE if alone else PAGE_WHOLE).replace("{kind}", kind),
+        "page": (
+            PAGE_ALONE if alone else PAGE_OWN if backdrop == "none" else PAGE_WHOLE
+        ).replace("{kind}", kind),
+        "medium": MEDIUM_ONLY.replace("{kind}", kind),
+        "label": _label.lower()
+        if job.get("style") in STYLES
+        else "in the style asked for",
         "outline": OUTLINE.replace("{kind}", kind) if alone else "",
     }
     fidelity = str(job.get("fidelity") or "photo")
@@ -663,12 +699,38 @@ def prompt_for(job: dict[str, Any]) -> str:
     if not job.get("exact"):
         text += f" The photograph is of another {kind} of the same class: keep the class's shape and the operator's standard livery, and leave out any advertising wrap or fleet number particular to that one."
     if str(job.get("style") or "") in MONO:
-        text = text.replace(*MONO_WORDS)
+        text = (
+            text.replace(*MONO_WORDS)
+            .replace("its colours, markings,", "its markings,")
+            .replace(*(w.replace("{kind}", kind) for w in MONO_MEDIUM))
+            .replace(*MONO_LAST)
+        )
     return text
 
 
 def model_of(model: str | None) -> str:
     return model if model in MODELS else DEFAULT_MODEL
+
+
+# Styles that build the vehicle out of something (pixels, glass, facets, card, bricks): Nano Banana keeps
+# them close to the photograph, GPT Image 2 makes them, so a cell left on Nano Banana paints these with it
+STYLE_MODEL = {
+    "pixel": "gpt_image",
+    "stained_glass": "gpt_image",
+    "lowpoly": "gpt_image",
+    "papercraft": "gpt_image",
+    "toybrick": "gpt_image",
+    # the no-colour styles: Nano Banana keeps the livery's green whatever it is told
+    "engraving": "gpt_image",
+    "pencil": "gpt_image",
+    "charcoal": "gpt_image",
+}
+
+
+def model_for(style: str, model: str) -> str:
+    """The model a painting in ``style`` is made with: the cell's own, or for a
+    style Nano Banana cannot make, GPT Image 2 in its place."""
+    return STYLE_MODEL.get(style, model) if model == DEFAULT_MODEL else model
 
 
 # ----------------------------------------------------------------------
