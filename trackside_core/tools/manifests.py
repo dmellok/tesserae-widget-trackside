@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-VERSION = "0.5.0"
+VERSION = "0.5.1"
 TESSERAE_MIN = "0.463.0"
 
 
@@ -74,6 +74,16 @@ def sel(name, label, default, choices, **kw):
         ],
         **kw,
     }
+
+
+def adv(option):
+    """Fine-tuning: Tesserae folds these into a collapsed More options at the end of the panel."""
+    return {**option, "advanced": True}
+
+
+# The panel reads as Fugleramme's: where the positions come from, the place and the reach, how
+# many, the pictures and the paper up front; what one choice needs nested under it; the
+# fine-tuning under More options.
 
 
 def where_options():
@@ -138,38 +148,46 @@ def where_options():
             "3",
             [(v, f"{v} km") for v in ("1", "2", "3", "5", "10", "15", "25")],
         ),
-        {
-            "name": "modes",
-            "type": "multiselect",
-            "label": "Show",
-            "default": ["tram", "train", "regional", "subway"],
-            "choices": [
-                {"value": "tram", "label": "Trams and light rail"},
-                {"value": "train", "label": "Suburban trains"},
-                {"value": "regional", "label": "Regional trains"},
-                {"value": "subway", "label": "Subway and metro"},
-            ],
-        },
-        sel(
-            "order",
-            "Order",
-            "nearest",
-            [
-                ("nearest", "Nearest first"),
-                ("fastest", "Fastest first"),
-                ("longest", "Longest first"),
-            ],
-        ),
-        sel(
-            "period",
-            "When",
-            "now",
-            [
-                ("now", "What is within reach now"),
-                ("since", "Everything that passed since the last render"),
-            ],
-            help="Since the last render keeps a watch on the place between renders (the feeds asked every minute) and shows every train and tram seen since the page was last drawn for a panel, each at her closest approach with the time. The editor's previews show the same window without moving it on; the watch stops three hours after a page last asked, and a first render shows the last hour.",
-        ),
+    ]
+
+
+def traffic_options():
+    return [
+        adv(o)
+        for o in [
+            {
+                "name": "modes",
+                "type": "multiselect",
+                "label": "Show",
+                "default": ["tram", "train", "regional", "subway"],
+                "choices": [
+                    {"value": "tram", "label": "Trams and light rail"},
+                    {"value": "train", "label": "Suburban trains"},
+                    {"value": "regional", "label": "Regional trains"},
+                    {"value": "subway", "label": "Subway and metro"},
+                ],
+            },
+            sel(
+                "order",
+                "Order",
+                "nearest",
+                [
+                    ("nearest", "Nearest first"),
+                    ("fastest", "Fastest first"),
+                    ("longest", "Longest first"),
+                ],
+            ),
+            sel(
+                "period",
+                "When",
+                "now",
+                [
+                    ("now", "What is within reach now"),
+                    ("since", "Everything that passed since the last render"),
+                ],
+                help="Since the last render keeps a watch on the place between renders (the feeds asked every minute) and shows every train and tram seen since the page was last drawn for a panel, each at her closest approach with the time. The editor's previews show the same window without moving it on; the watch stops three hours after a page last asked, and a first render shows the last hour.",
+            ),
+        ]
     ]
 
 
@@ -185,17 +203,6 @@ def picture_options(with_backdrop, many, scene=False):
                 ("paintings", "AI paintings, each from a photograph"),
             ],
             help="Photographs cost nothing and need no key: Wikimedia Commons by the vehicle's number in her class's category, or a photograph of her class where Commons has none of her own (marked so). AI paintings paint each vehicle once from that photograph, in the style below, at about US$0.04 a painting; needs a fal.ai key.",
-        ),
-        sel(
-            "paint",
-            "Paint",
-            "all",
-            [
-                ("all", "Every vehicle with a photograph, her own or her class's"),
-                ("own", "Only vehicles with a photograph of their own"),
-            ],
-            show_if=show,
-            help="A painting from a photograph of her class keeps the class's shape and the operator's standard livery but not her own wrap or number, and is marked an impression. Only vehicles with a photograph of their own asks for no such painting; the rest show as the setting below says.",
         ),
         sel("style", "Style", "poster", STYLES, show_if=show),
         {
@@ -239,6 +246,25 @@ def picture_options(with_backdrop, many, scene=False):
                 help="None keeps the vehicle alone on the page, cut out. The rest paint a whole picture that fills its frame, in the same style. The street as it is now takes the time of day and the weather (Open-Meteo) at the place, and paints each condition once per vehicle, so a changing sky costs more paintings.",
             )
         )
+    return out
+
+
+def painting_options(many):
+    show = {"pictures": "paintings"}
+    out = []
+    out.append(
+            sel(
+                "paint",
+                "Paint",
+                "all",
+                [
+                    ("all", "Every vehicle with a photograph, her own or her class's"),
+                    ("own", "Only vehicles with a photograph of their own"),
+                ],
+                show_if=show,
+                help="A painting from a photograph of her class keeps the class's shape and the operator's standard livery but not her own wrap or number, and is marked an impression. Only vehicles with a photograph of their own asks for no such painting; the rest show as the setting below says.",
+            )
+    )
     out.append(
         sel(
             "fidelity",
@@ -328,11 +354,29 @@ def picture_options(with_backdrop, many, scene=False):
                 show_if=show,
             )
         )
-    return out
+    return [adv(o) for o in out]
+
+
+def paper_options(**kw):
+    return [
+        sel(
+            "paper",
+            "Paper",
+            "cream",
+            [
+                ("cream", "Cream"),
+                ("white", "White"),
+                ("aged", "Aged"),
+                ("blueprint", "Blueprint: pale ink on blue"),
+                ("sky", "A soft sky wash"),
+            ],
+            **kw,
+        ),
+    ]
 
 
 def page_options(labels_default):
-    return [
+    return [adv(o) for o in [
         {
             "name": "labels",
             "type": "multiselect",
@@ -383,18 +427,6 @@ def page_options(labels_default):
             ],
         ),
         sel(
-            "paper",
-            "Paper",
-            "cream",
-            [
-                ("cream", "Cream"),
-                ("white", "White"),
-                ("aged", "Aged"),
-                ("blueprint", "Blueprint: pale ink on blue"),
-                ("sky", "A soft sky wash"),
-            ],
-        ),
-        sel(
             "panel",
             "Panel",
             "colour",
@@ -414,7 +446,7 @@ def page_options(labels_default):
         ),
         sel(
             "font",
-            "Type",
+            "Typeface",
             "fell",
             [
                 ("fell", "IM Fell English: the old plate"),
@@ -423,7 +455,7 @@ def page_options(labels_default):
                 ("page", "The dashboard's own font"),
             ],
         ),
-    ]
+    ]]
 
 
 WIDGETS = {
@@ -437,15 +469,21 @@ WIDGETS = {
                 {
                     "name": "strip",
                     "type": "number",
-                    "label": "More along the strip",
+                    "label": "How many along the strip",
                     "default": 4,
                     "help": "0 to 8 after the nearest.",
                 },
-                sel(
-                    "photo_fit",
-                    "Photograph",
-                    "cover",
-                    [("cover", "Fills the page"), ("contain", "Fits inside the page")],
+            ]
+            + paper_options()
+            + traffic_options()
+            + [
+                adv(
+                    sel(
+                        "photo_fit",
+                        "Photograph fit",
+                        "cover",
+                        [("cover", "Fills the page"), ("contain", "Fits inside the page")],
+                    )
                 ),
             ]
             + page_options(["line", "speed", "distance"])
@@ -458,7 +496,6 @@ WIDGETS = {
         "options": lambda: (
             where_options()
             + picture_options(True, False)
-            + page_options(["line", "status", "distance"])
             + [
                 sel(
                     "look",
@@ -478,19 +515,27 @@ WIDGETS = {
                         ("split", "Split: the picture framed on a dark page"),
                     ],
                 ),
-                sel(
-                    "colours",
-                    "Colours",
-                    "operator",
-                    [
-                        (
-                            "operator",
-                            "The operator's own: Yarra Trams green, Metro blue, V/Line purple",
-                        ),
-                        ("paper", "Paper and ink"),
-                    ],
+            ]
+            + paper_options(show_if={"look": "plate"})
+            + traffic_options()
+            + painting_options(False)
+            + [
+                adv(
+                    sel(
+                        "colours",
+                        "Colours",
+                        "operator",
+                        [
+                            (
+                                "operator",
+                                "The operator's own: Yarra Trams green, Metro blue, V/Line purple",
+                            ),
+                            ("paper", "Paper and ink"),
+                        ],
+                    )
                 ),
             ]
+            + page_options(["line", "status", "distance"])
         ),
     },
     "trackside_lineup": {
@@ -509,8 +554,11 @@ WIDGETS = {
                 }
             ]
             + picture_options(False, True)
+            + paper_options()
+            + traffic_options()
+            + painting_options(True)
             + [
-                {
+                adv({
                     "name": "scale",
                     "type": "slider",
                     "label": "Scale",
@@ -520,7 +568,7 @@ WIDGETS = {
                     "step": 5,
                     "unit": "%",
                     "show_if": {"pictures": "paintings"},
-                },
+                }),
             ]
             + page_options(["type", "line", "distance"])
         ),
@@ -532,6 +580,9 @@ WIDGETS = {
         "options": lambda: (
             where_options()
             + picture_options(True, False, scene=True)
+            + paper_options()
+            + traffic_options()
+            + painting_options(False)
             + page_options(["line", "status", "distance"])
         ),
     },

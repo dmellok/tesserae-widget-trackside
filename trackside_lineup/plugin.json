@@ -1,7 +1,7 @@
 {
   "tesserae_compat": "1.x",
   "name": "Trackside: Line-up",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "kind": "widget",
   "tesserae_min": "0.463.0",
   "description": "Every train and tram near a place on one page: each painted from her photograph and cut out, sized by her length, with a caption; or, with photographs, a spotter's log of cards. Twenty-six styles, a style builder and your own prompt.",
@@ -143,72 +143,6 @@
       ]
     },
     {
-      "name": "modes",
-      "type": "multiselect",
-      "label": "Show",
-      "default": [
-        "tram",
-        "train",
-        "regional",
-        "subway"
-      ],
-      "choices": [
-        {
-          "value": "tram",
-          "label": "Trams and light rail"
-        },
-        {
-          "value": "train",
-          "label": "Suburban trains"
-        },
-        {
-          "value": "regional",
-          "label": "Regional trains"
-        },
-        {
-          "value": "subway",
-          "label": "Subway and metro"
-        }
-      ]
-    },
-    {
-      "name": "order",
-      "type": "select",
-      "label": "Order",
-      "default": "nearest",
-      "choices": [
-        {
-          "value": "nearest",
-          "label": "Nearest first"
-        },
-        {
-          "value": "fastest",
-          "label": "Fastest first"
-        },
-        {
-          "value": "longest",
-          "label": "Longest first"
-        }
-      ]
-    },
-    {
-      "name": "period",
-      "type": "select",
-      "label": "When",
-      "default": "now",
-      "choices": [
-        {
-          "value": "now",
-          "label": "What is within reach now"
-        },
-        {
-          "value": "since",
-          "label": "Everything that passed since the last render"
-        }
-      ],
-      "help": "Since the last render keeps a watch on the place between renders (the feeds asked every minute) and shows every train and tram seen since the page was last drawn for a panel, each at her closest approach with the time. The editor's previews show the same window without moving it on; the watch stops three hours after a page last asked, and a first render shows the last hour."
-    },
-    {
       "name": "count",
       "type": "number",
       "label": "How many",
@@ -231,26 +165,6 @@
         }
       ],
       "help": "Photographs cost nothing and need no key: Wikimedia Commons by the vehicle's number in her class's category, or a photograph of her class where Commons has none of her own (marked so). AI paintings paint each vehicle once from that photograph, in the style below, at about US$0.04 a painting; needs a fal.ai key."
-    },
-    {
-      "name": "paint",
-      "type": "select",
-      "label": "Paint",
-      "default": "all",
-      "choices": [
-        {
-          "value": "all",
-          "label": "Every vehicle with a photograph, her own or her class's"
-        },
-        {
-          "value": "own",
-          "label": "Only vehicles with a photograph of their own"
-        }
-      ],
-      "show_if": {
-        "pictures": "paintings"
-      },
-      "help": "A painting from a photograph of her class keeps the class's shape and the operator's standard livery but not her own wrap or number, and is marked an impression. Only vehicles with a photograph of their own asks for no such painting; the rest show as the setting below says."
     },
     {
       "name": "style",
@@ -696,6 +610,124 @@
       "help": "Added to the style: for example, with a little gold leaf on the pantograph."
     },
     {
+      "name": "paper",
+      "type": "select",
+      "label": "Paper",
+      "default": "cream",
+      "choices": [
+        {
+          "value": "cream",
+          "label": "Cream"
+        },
+        {
+          "value": "white",
+          "label": "White"
+        },
+        {
+          "value": "aged",
+          "label": "Aged"
+        },
+        {
+          "value": "blueprint",
+          "label": "Blueprint: pale ink on blue"
+        },
+        {
+          "value": "sky",
+          "label": "A soft sky wash"
+        }
+      ]
+    },
+    {
+      "name": "modes",
+      "type": "multiselect",
+      "label": "Show",
+      "default": [
+        "tram",
+        "train",
+        "regional",
+        "subway"
+      ],
+      "choices": [
+        {
+          "value": "tram",
+          "label": "Trams and light rail"
+        },
+        {
+          "value": "train",
+          "label": "Suburban trains"
+        },
+        {
+          "value": "regional",
+          "label": "Regional trains"
+        },
+        {
+          "value": "subway",
+          "label": "Subway and metro"
+        }
+      ],
+      "advanced": true
+    },
+    {
+      "name": "order",
+      "type": "select",
+      "label": "Order",
+      "default": "nearest",
+      "choices": [
+        {
+          "value": "nearest",
+          "label": "Nearest first"
+        },
+        {
+          "value": "fastest",
+          "label": "Fastest first"
+        },
+        {
+          "value": "longest",
+          "label": "Longest first"
+        }
+      ],
+      "advanced": true
+    },
+    {
+      "name": "period",
+      "type": "select",
+      "label": "When",
+      "default": "now",
+      "choices": [
+        {
+          "value": "now",
+          "label": "What is within reach now"
+        },
+        {
+          "value": "since",
+          "label": "Everything that passed since the last render"
+        }
+      ],
+      "help": "Since the last render keeps a watch on the place between renders (the feeds asked every minute) and shows every train and tram seen since the page was last drawn for a panel, each at her closest approach with the time. The editor's previews show the same window without moving it on; the watch stops three hours after a page last asked, and a first render shows the last hour.",
+      "advanced": true
+    },
+    {
+      "name": "paint",
+      "type": "select",
+      "label": "Paint",
+      "default": "all",
+      "choices": [
+        {
+          "value": "all",
+          "label": "Every vehicle with a photograph, her own or her class's"
+        },
+        {
+          "value": "own",
+          "label": "Only vehicles with a photograph of their own"
+        }
+      ],
+      "show_if": {
+        "pictures": "paintings"
+      },
+      "help": "A painting from a photograph of her class keeps the class's shape and the operator's standard livery but not her own wrap or number, and is marked an impression. Only vehicles with a photograph of their own asks for no such painting; the rest show as the setting below says.",
+      "advanced": true
+    },
+    {
       "name": "fidelity",
       "type": "select",
       "label": "Faithfulness",
@@ -717,7 +749,8 @@
       "show_if": {
         "pictures": "paintings"
       },
-      "help": "Most photographs of a tram or a train are taken from the front three-quarter. Side-on hands the painter a second picture of her class seen from the side (chosen by hand for each Melbourne class, or your own under the Trackside Core settings) and paints a pure side elevation, the way a fleet line-up reads; a class without a side view is painted side-on from her photograph alone. The other two use the side view too, where there is one, for her length and the spacing of her doors."
+      "help": "Most photographs of a tram or a train are taken from the front three-quarter. Side-on hands the painter a second picture of her class seen from the side (chosen by hand for each Melbourne class, or your own under the Trackside Core settings) and paints a pure side elevation, the way a fleet line-up reads; a class without a side view is painted side-on from her photograph alone. The other two use the side view too, where there is one, for her length and the spacing of her doors.",
+      "advanced": true
     },
     {
       "name": "view",
@@ -745,7 +778,8 @@
       "show_if": {
         "pictures": "paintings",
         "fidelity": "free"
-      }
+      },
+      "advanced": true
     },
     {
       "name": "model",
@@ -777,7 +811,8 @@
       "show_if": {
         "pictures": "paintings"
       },
-      "help": "All on fal.ai, all painting from the photograph. On Nano Banana, pixel art, stained glass, low-poly, paper craft, toy bricks and the grey styles (engraving, pencil, charcoal) are painted with GPT Image 2 (about US$0.05), as Nano Banana keeps them close to the photograph."
+      "help": "All on fal.ai, all painting from the photograph. On Nano Banana, pixel art, stained glass, low-poly, paper craft, toy bricks and the grey styles (engraving, pencil, charcoal) are painted with GPT Image 2 (about US$0.05), as Nano Banana keeps them close to the photograph.",
+      "advanced": true
     },
     {
       "name": "unpainted",
@@ -800,7 +835,8 @@
       ],
       "show_if": {
         "pictures": "paintings"
-      }
+      },
+      "advanced": true
     },
     {
       "name": "when_spent",
@@ -824,7 +860,8 @@
       "show_if": {
         "pictures": "paintings"
       },
-      "help": "Once to-day's painting budget is spent, the trains and trams that could not be painted give way to paintings of other vehicles this widget already kept in the same style: a different handful each hour, or the ones seen fewest times first. Their labels say when each was last seen. Only paintings from a vehicle's own photograph are used, not those of her class, and nothing is spent on them."
+      "help": "Once to-day's painting budget is spent, the trains and trams that could not be painted give way to paintings of other vehicles this widget already kept in the same style: a different handful each hour, or the ones seen fewest times first. Their labels say when each was last seen. Only paintings from a vehicle's own photograph are used, not those of her class, and nothing is spent on them.",
+      "advanced": true
     },
     {
       "name": "scale",
@@ -837,7 +874,8 @@
       "unit": "%",
       "show_if": {
         "pictures": "paintings"
-      }
+      },
+      "advanced": true
     },
     {
       "name": "labels",
@@ -890,14 +928,16 @@
           "value": "seen",
           "label": "When she was within reach"
         }
-      ]
+      ],
+      "advanced": true
     },
     {
       "name": "title",
       "type": "string",
       "label": "Title",
       "default": "",
-      "help": "Blank uses the place."
+      "help": "Blank uses the place.",
+      "advanced": true
     },
     {
       "name": "header",
@@ -917,7 +957,8 @@
           "value": "hidden",
           "label": "Hidden"
         }
-      ]
+      ],
+      "advanced": true
     },
     {
       "name": "footer",
@@ -937,35 +978,8 @@
           "value": "hide",
           "label": "Nothing"
         }
-      ]
-    },
-    {
-      "name": "paper",
-      "type": "select",
-      "label": "Paper",
-      "default": "cream",
-      "choices": [
-        {
-          "value": "cream",
-          "label": "Cream"
-        },
-        {
-          "value": "white",
-          "label": "White"
-        },
-        {
-          "value": "aged",
-          "label": "Aged"
-        },
-        {
-          "value": "blueprint",
-          "label": "Blueprint: pale ink on blue"
-        },
-        {
-          "value": "sky",
-          "label": "A soft sky wash"
-        }
-      ]
+      ],
+      "advanced": true
     },
     {
       "name": "panel",
@@ -990,7 +1004,8 @@
           "label": "Black and white"
         }
       ],
-      "help": "What the panel can show. Pictures are converted and contrast-stretched to match."
+      "help": "What the panel can show. Pictures are converted and contrast-stretched to match.",
+      "advanced": true
     },
     {
       "name": "text_size",
@@ -1018,12 +1033,13 @@
           "value": "150",
           "label": "150%"
         }
-      ]
+      ],
+      "advanced": true
     },
     {
       "name": "font",
       "type": "select",
-      "label": "Type",
+      "label": "Typeface",
       "default": "fell",
       "choices": [
         {
@@ -1042,7 +1058,8 @@
           "value": "page",
           "label": "The dashboard's own font"
         }
-      ]
+      ],
+      "advanced": true
     }
   ],
   "data_schema": {

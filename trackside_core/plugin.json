@@ -2,7 +2,7 @@
   "tesserae_compat": "1.x",
   "tesserae_min": "0.463.0",
   "name": "Trackside Core",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "kind": "data",
   "description": "The settings and the paintings page for the Trackside widgets (trackside_photo, trackside_plate, trackside_lineup, trackside_scene): the Transport Victoria key, the fal.ai key, the contact for Wikimedia Commons and the daily painting budget. No widget of its own.",
   "icon": "ph-train",
