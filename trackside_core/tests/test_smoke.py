@@ -421,7 +421,7 @@ def test_manifests_and_client_files():
     ):
         m = json.loads((ROOT / wid / "plugin.json").read_text(encoding="utf-8"))
         assert (
-            m["version"] == "0.5.1"
+            m["version"] == "0.5.2"
             and m["tesserae_compat"] == "1.x"
             and m["tesserae_min"] == "0.463.0"
         )

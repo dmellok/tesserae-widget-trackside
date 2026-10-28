@@ -1,7 +1,7 @@
 {
   "tesserae_compat": "1.x",
   "name": "Trackside: Photo",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "kind": "widget",
   "tesserae_min": "0.463.0",
   "description": "The nearest train or tram to a place, right now, as a full-bleed photograph of the very vehicle or her class (Wikimedia Commons), with her number, class, line and distance, and the next few along a strip. Melbourne with a free key, or any agency's GTFS-Realtime feed.",

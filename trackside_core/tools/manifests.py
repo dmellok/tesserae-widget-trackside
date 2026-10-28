@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-VERSION = "0.5.1"
+VERSION = "0.5.2"
 TESSERAE_MIN = "0.463.0"
 
 
